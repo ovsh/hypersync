@@ -134,10 +134,10 @@ export default function Home() {
                 variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 80, damping: 20 } } }}
               >
                 <p className="text-slate-500 text-lg leading-relaxed font-body">
-                  Hypersync installs shared skills and rules from a GitHub repo into Claude Code, Codex, Cursor, and others.
+                  Hypersync installs shared skills and rules from a GitHub repo into Claude Code, Cursor, and every tool your team uses.
                 </p>
                 <p className="text-slate-500 text-lg leading-relaxed font-body">
-                  Update once, everyone gets it.
+                  Push to main. Every machine catches up.
                 </p>
               </motion.div>
 
