@@ -14,9 +14,9 @@ struct SkillsView: View {
     @State private var skillToDelete: SkillInfo? = nil
 
     enum SkillTab: String, CaseIterable {
-        case global = "Global"
+        case global = "Team"
         case local = "Local"
-        case community = "Community"
+        case community = "Playground"
     }
 
     private var displayedSkills: [SkillInfo] {
@@ -208,25 +208,25 @@ struct SkillsView: View {
 
     private var emptyStateIcon: String {
         switch selectedTab {
-        case .global: return "globe"
+        case .global: return "person.2"
         case .local: return "tray"
-        case .community: return "person.3"
+        case .community: return "flask"
         }
     }
 
     private var emptyStateTitle: String {
         switch selectedTab {
-        case .global: return "No global skills synced"
+        case .global: return "No team skills synced"
         case .local: return "No local skills"
-        case .community: return "No community skills found"
+        case .community: return "No playground skills found"
         }
     }
 
     private var emptyStateSubtitle: String {
         switch selectedTab {
-        case .global: return "Run a sync to pull global skills"
-        case .local: return "Skills in ~/.claude/skills/ not from global"
-        case .community: return "Community skills appear after syncing the registry"
+        case .global: return "Run a sync to pull team skills"
+        case .local: return "Skills in ~/.claude/skills/ not from team"
+        case .community: return "Playground skills appear after syncing the registry"
         }
     }
 
@@ -258,7 +258,7 @@ struct SkillsView: View {
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
-    // MARK: - Skill Card (Global)
+    // MARK: - Skill Card (Team)
 
     private func skillCard(_ skill: SkillInfo) -> some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -303,7 +303,7 @@ struct SkillsView: View {
                         .foregroundStyle(Brand.indigoMid)
                 }
                 .buttonStyle(.plain)
-                .help("Push to Community")
+                .help("Push to Playground")
 
                 LocalSkillDeleteButton { skillToDelete = skill }
             }
@@ -328,7 +328,7 @@ struct SkillsView: View {
         )
     }
 
-    // MARK: - Skill Card (Community)
+    // MARK: - Skill Card (Playground)
 
     private func communitySkillCard(_ skill: SkillInfo) -> some View {
         let isEnabled = localEnabledCommunitySkills.contains(skill.dirName)
@@ -402,7 +402,7 @@ struct SkillsView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: task)
     }
 
-    // MARK: - Community Sync Bar (Sticky)
+    // MARK: - Playground Sync Bar (Sticky)
 
     private var hasSelectedCommunitySkills: Bool {
         !localEnabledCommunitySkills.isEmpty
@@ -455,7 +455,7 @@ struct SkillsView: View {
         return FileManager.default.fileExists(atPath: "\(home)/.claude/skills/\(dirName)")
     }
 
-    // MARK: - Push to Community
+    // MARK: - Push to Playground
 
     private func pushToCommunity(skill: SkillInfo) {
         let settings = appState.settingsStore.settings
@@ -503,7 +503,7 @@ struct SkillsView: View {
         }
     }
 
-    // MARK: - Sync Community Skills
+    // MARK: - Sync Playground Skills
 
     private func syncCommunitySkills() {
         guard !isSyncing else { return }
@@ -529,7 +529,7 @@ struct SkillsView: View {
 
             DispatchQueue.main.async {
                 isSyncing = false
-                syncMessage = "Synced \(synced) community skill\(synced == 1 ? "" : "s")"
+                syncMessage = "Synced \(synced) playground skill\(synced == 1 ? "" : "s")"
                 Analytics.track(.communitySkillsSynced(count: synced))
                 loadSkills()
 

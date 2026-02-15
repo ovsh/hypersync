@@ -27,8 +27,8 @@ Any tool that reads from `~/.agents/` works out of the box. Need another path? A
 ## Features
 
 - **One-click sync** from the menu bar
-- **Skills browser** — browse Global, Local, and Community skills
-- **Community skills** — toggle shared community skills on/off per tool
+- **Skills browser** — browse Team, Local, and Playground skills
+- **Playground skills** — try out skills from teammates before promoting to team
 - **Auto sync** — periodic background sync on a configurable interval
 - **Onboarding wizard** — guided setup with GitHub CLI integration
 - **Auto-update** — checks GitHub Releases and self-updates in place

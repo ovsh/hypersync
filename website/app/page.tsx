@@ -256,9 +256,9 @@ export default function Home() {
 
                     {/* Tabs */}
                     <div className="flex rounded-lg bg-white/5 p-0.5 text-[11px] font-display">
-                      <div className="flex-1 text-center py-1.5 text-white/40">Global <span className="text-white/25">3</span></div>
+                      <div className="flex-1 text-center py-1.5 text-white/40">Team <span className="text-white/25">3</span></div>
                       <div className="flex-1 text-center py-1.5 rounded-md bg-white/10 text-white font-medium">Local <span className="text-white/50">7</span></div>
-                      <div className="flex-1 text-center py-1.5 text-white/40">Community <span className="text-white/25">2</span></div>
+                      <div className="flex-1 text-center py-1.5 text-white/40">Playground <span className="text-white/25">2</span></div>
                     </div>
 
                     {/* Skill cards */}
