@@ -137,7 +137,7 @@ export default function Home() {
                   Hypersync installs shared skills and rules from a GitHub repo into Claude Code, Cursor, and every tool your team uses.
                 </p>
                 <p className="text-slate-500 text-lg leading-relaxed font-body">
-                  Push to main. Every machine catches up.
+                  Set it up once. Everyone stays in sync, always.
                 </p>
               </motion.div>
 
