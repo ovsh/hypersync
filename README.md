@@ -7,7 +7,7 @@ Menu-bar macOS app that keeps your team's AI coding tools configured with shared
 1. Download **Hypersync-MacOS.zip** from the [latest release](../../releases/latest)
 2. Unzip and move **Hypersync.app** to `/Applications`
 3. Open Hypersync — it lives in your menu bar
-4. Point it at your team's GitHub repo and hit **Sync**
+4. Connect an existing repo or **one-click create** a new one from the template, then hit **Sync**
 
 > Requires macOS 14+.
 
@@ -17,15 +17,12 @@ Hypersync auto-discovers `skills/` and `rules/` directories from your registry r
 
 | Tool | Skills | Rules |
 |------|:------:|:-----:|
-| [Cursor](https://cursor.sh) | `~/.cursor/skills` | `~/.cursor/rules` |
+| Agents (Codex, Windsurf, Gemini CLI, ...) | `~/.agents/skills` | — |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `~/.claude/skills` | `~/.claude/rules` |
-| [Codex](https://github.com/openai/codex) | `~/.codex/skills` | — |
-| [Kiro](https://kiro.dev) | `~/.kiro/skills` | — |
-| [Roo](https://github.com/RooVetGit/Roo-Code) | `~/.roo/skills` | `~/.roo/rules` |
-| [Windsurf](https://codeium.com/windsurf) | — | `~/.windsurf/rules` |
-| Agents (generic) | `~/.agents/skills` | — |
+| [Cursor](https://cursor.sh) | `~/.cursor/skills` | `~/.cursor/rules` |
+| [OpenCode](https://opencode.ai) | `~/.config/opencode/skills` | — |
 
-New tool? Add a path to `ManifestLoader.swift` and you're done.
+Any tool that reads from `~/.agents/` works out of the box. Need another path? Add it to `ManifestLoader.swift`.
 
 ## Features
 

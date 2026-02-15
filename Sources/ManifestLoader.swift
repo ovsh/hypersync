@@ -18,25 +18,21 @@ struct ManifestLoader {
 
     /// All agent tool directories that receive skills
     static let skillDestinations = [
-        ".cursor/skills",
-        ".claude/skills",
-        ".codex/skills",
-        ".kiro/skills",
-        ".roo/skills",
         ".agents/skills",
+        ".claude/skills",
+        ".cursor/skills",
+        ".config/opencode/skills",
     ]
 
     /// All agent tool directories that receive rules
     static let rulesDestinations = [
-        ".cursor/rules",
         ".claude/rules",
-        ".roo/rules",
-        ".windsurf/rules",
+        ".cursor/rules",
     ]
 
     /// All allowed destination prefixes (skills + rules)
     static let allowedPrefixes = [
-        ".cursor", ".claude", ".codex", ".kiro", ".roo", ".agents", ".windsurf",
+        ".agents", ".claude", ".cursor", ".config/opencode",
     ]
 
     /// Scan the registry for `skills/` and `rules/` directories under the given
