@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "HyperSyncMac",
+    name: "Hypersync",
     platforms: [
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "HyperSyncMac", targets: ["HyperSyncMac"])
+        .executable(name: "Hypersync", targets: ["Hypersync"])
     ],
     dependencies: [
         .package(url: "https://github.com/PostHog/posthog-ios", from: "3.0.0"),
@@ -15,12 +15,15 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "HyperSyncMac",
+            name: "Hypersync",
             dependencies: [
                 .product(name: "PostHog", package: "posthog-ios"),
                 .product(name: "MarkdownUI", package: "swift-markdown-ui")
             ],
             path: "Sources",
+            resources: [
+                .copy("Resources/AppIcon.png")
+            ],
             swiftSettings: [
                 // Workaround for Swift 6.0.x compiler crash in release builds:
                 // "Failed to reconstruct type for StateObject<AppState>"

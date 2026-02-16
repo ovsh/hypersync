@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="Hypersync.app"
-EXECUTABLE_NAME="HyperSyncMac"
+EXECUTABLE_NAME="Hypersync"
 BUNDLE_ID="${BUNDLE_ID:-com.ovsh.hypersync}"
 CONFIGURATION="${CONFIGURATION:-release}"
 DIST_DIR="$ROOT_DIR/dist"

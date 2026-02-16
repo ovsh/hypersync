@@ -1,37 +1,6 @@
 import ServiceManagement
 import SwiftUI
 
-// MARK: - Brand Colors
-
-enum Brand {
-    static let indigo = Color(red: 0.29, green: 0.29, blue: 0.96)       // #4A4AF4
-    static let indigoDim = Color(red: 0.18, green: 0.18, blue: 0.76)    // #2F2FC1
-    static let indigoMid = Color(red: 0.66, green: 0.66, blue: 0.99)    // #A8A9FC
-    static let indigoLight = Color(red: 0.90, green: 0.90, blue: 0.99)  // #E6E6FC
-    static let darkBg = Color(red: 0.075, green: 0.075, blue: 0.12)     // #13131F
-    static let darkBgAlt = Color(red: 0.106, green: 0.106, blue: 0.19)  // #1B1B30
-}
-
-// MARK: - Visual Effect Bridge
-
-struct VisualEffectBackground: NSViewRepresentable {
-    let material: NSVisualEffectView.Material
-    let blendingMode: NSVisualEffectView.BlendingMode
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = blendingMode
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
-        nsView.blendingMode = blendingMode
-    }
-}
-
 // MARK: - Settings View
 
 struct SettingsView: View {
