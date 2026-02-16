@@ -111,7 +111,7 @@ struct SkillsView: View {
             detail
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 620, minHeight: 420, idealHeight: 540)
+        .frame(minWidth: 720, idealWidth: 960, minHeight: 480, idealHeight: 640)
         .overlay(alignment: .bottom) {
             VStack(spacing: 0) {
                 if let msg = pushMessage {
@@ -186,6 +186,7 @@ struct SkillsView: View {
                     category: category,
                     teamName: teamName,
                     isSyncing: isSyncing,
+                    columnVisibility: columnVisibility,
                     enabledPlaygroundSkills: $enabledPlaygroundSkills,
                     onDelete: { skillToDelete = $0 },
                     onPush: { beginPushToPlayground(skill: $0) },
@@ -271,81 +272,121 @@ struct SkillsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.background.opacity(0.85))
+        .background(Surface.content)
         .toolbarBackground(.hidden, for: .automatic)
         .ignoresSafeArea(.container, edges: .top)
     }
 
     // MARK: - Space Detail (skill list for a space)
 
+    @ViewBuilder
     private func spaceDetailView(_ spaceName: String) -> some View {
         let isTeam = spaceName == "team"
         let skills = isTeam ? sortedTeamSkills : localSkills
         let playgroundSkills = isTeam ? sortedPlaygroundSkills : []
 
-        return VStack(alignment: .leading, spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Header
-                    HStack {
+        Group {
+            if skills.isEmpty && playgroundSkills.isEmpty {
+                // Hero empty state — centered in full pane
+                VStack(spacing: Space.xl) {
+                    Image(systemName: isTeam ? "person.3" : "laptopcomputer")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.tertiary)
+
+                    VStack(spacing: Space.sm) {
                         Text(isTeam ? "Team Skills" : "Local Skills")
-                            .font(.system(size: 18, weight: .semibold))
-                        Spacer()
-                        let count = isTeam ? teamSkillCount : localSkills.count
-                        Text("\(count)")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.tertiary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(.quaternary.opacity(0.5))
-                            .clipShape(Capsule())
+                            .font(.system(size: 20, weight: .semibold))
+                        Text(isTeam
+                             ? "Your team skills will appear here after syncing."
+                             : "Create a skill to get started.")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
                     }
 
-                    if skills.isEmpty && playgroundSkills.isEmpty {
-                        // Empty state
-                        VStack(spacing: 12) {
-                            Image(systemName: isTeam ? "person.3" : "laptopcomputer")
-                                .font(.system(size: 28))
-                                .foregroundStyle(.tertiary)
-                            Text(isTeam
-                                 ? "Your team skills will appear here after syncing."
-                                 : "Create a skill to get started.")
-                                .font(.system(size: 13))
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 40)
-                    } else {
-                        // Skill cards
-                        VStack(spacing: 2) {
-                            ForEach(skills) { skill in
-                                spaceDetailSkillCard(skill)
+                    Button {
+                        if isTeam {
+                            if !appState.hasCompletedOnboarding || appState.settingsStore.settings.remoteGitURL.trimmed.isEmpty {
+                                openWindow(id: "onboarding")
+                            } else {
+                                appState.syncNow(trigger: "manual")
                             }
+                        } else {
+                            showNewSkillSheet = true
                         }
-
-                        // Playground sub-section
-                        if !playgroundSkills.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("PLAYGROUND")
-                                    .font(.system(size: 10, weight: .medium))
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: isTeam ? "arrow.triangle.2.circlepath" : "plus")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text(isTeam ? "Sync Team" : "Create Skill")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 28)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: Radius.lg)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Brand.indigo, Brand.indigoDim],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                // Skill list with header
+                VStack(alignment: .leading, spacing: 0) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            HStack {
+                                Text(isTeam ? "Team Skills" : "Local Skills")
+                                    .font(.system(size: 18, weight: .semibold))
+                                Spacer()
+                                let count = isTeam ? teamSkillCount : localSkills.count
+                                Text("\(count)")
+                                    .font(.system(size: 12, weight: .medium))
                                     .foregroundStyle(.tertiary)
-                                    .tracking(0.5)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(.quaternary.opacity(0.5))
+                                    .clipShape(Capsule())
+                            }
 
-                                VStack(spacing: 2) {
-                                    ForEach(playgroundSkills) { skill in
-                                        spaceDetailSkillCard(skill)
+                            VStack(spacing: 2) {
+                                ForEach(skills) { skill in
+                                    spaceDetailSkillCard(skill)
+                                }
+                            }
+
+                            if !playgroundSkills.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("PLAYGROUND")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(.tertiary)
+                                        .tracking(0.5)
+
+                                    VStack(spacing: 2) {
+                                        ForEach(playgroundSkills) { skill in
+                                            spaceDetailSkillCard(skill)
+                                        }
                                     }
                                 }
                             }
                         }
+                        .padding(.leading, columnVisibility == .detailOnly ? 80 : 24)
+                        .padding(.trailing, 24)
+                        .padding(.vertical, 24)
                     }
                 }
-                .padding(24)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(.background.opacity(0.85))
+        .background(Surface.content)
         .toolbarBackground(.hidden, for: .automatic)
         .ignoresSafeArea(.container, edges: .top)
     }
@@ -355,10 +396,6 @@ struct SkillsView: View {
             selection = .skill(skill.id)
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: "doc.text")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 20)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(skill.name)
                         .font(.system(size: 13, weight: .medium))
@@ -1080,6 +1117,7 @@ struct SkillDetailView: View {
     let category: SkillCategory
     let teamName: String?
     let isSyncing: Bool
+    let columnVisibility: NavigationSplitViewVisibility
     @Binding var enabledPlaygroundSkills: Set<String>
     let onDelete: (SkillInfo) -> Void
     let onPush: (SkillInfo) -> Void
@@ -1211,9 +1249,10 @@ struct SkillDetailView: View {
                     .help("Delete skill")
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.leading, columnVisibility == .detailOnly ? 80 : 20)
+            .padding(.trailing, 20)
             .padding(.vertical, 12)
-            .background(.bar)
+            .background(Surface.header)
 
             Divider().opacity(0.3)
 
@@ -1329,7 +1368,7 @@ struct SkillDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(.background.opacity(0.85))
+        .background(Surface.content)
         .toolbarBackground(.hidden, for: .automatic)
         .ignoresSafeArea(.container, edges: .top)
         .onAppear { loadContent() }
@@ -1592,6 +1631,7 @@ struct SkillsSidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .safeAreaPadding(.top, 8)
         .searchable(text: $searchText, placement: .sidebar, prompt: "Search skills")
     }
 
@@ -1619,21 +1659,15 @@ struct SkillsSidebarView: View {
     }
 
     private func sidebarSkillRow(_ skill: SkillInfo) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "doc.text")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .padding(.top, 2)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(skill.name)
-                    .font(.system(size: 13, weight: .medium))
+        VStack(alignment: .leading, spacing: 2) {
+            Text(skill.name)
+                .font(.system(size: 13, weight: .medium))
+                .lineLimit(1)
+            if !skill.description.isEmpty {
+                Text(skill.description)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
                     .lineLimit(1)
-                if !skill.description.isEmpty {
-                    Text(skill.description)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
             }
         }
         .padding(.vertical, 2)

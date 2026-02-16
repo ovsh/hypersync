@@ -13,4 +13,4 @@ if CommandLine.arguments.count >= 3, CommandLine.arguments[1] == "--generate-ico
     }
 }
 
-HyperSyncMacApp.main()
+HypersyncApp.main()

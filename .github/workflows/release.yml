@@ -33,7 +33,7 @@ jobs:
           fi
 
       - name: Build release binary
-        run: swift build -c release --product HyperSyncMac
+        run: swift build -c release --product Hypersync
 
       - name: Import signing certificate
         env:
@@ -59,29 +59,41 @@ jobs:
           KEY_PATH="$RUNNER_TEMP/notarize_key.p8"
           echo "$NOTARIZE_KEY_P8_BASE64" | base64 --decode > "$KEY_PATH"
 
-      - name: Package, sign & notarize app bundle
+      - name: Package and sign app bundle (DMG is notarized instead)
         env:
           SKIP_BUILD: "1"
+          SKIP_NOTARIZE: "1"
           CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY || '-' }}
-          NOTARIZE_KEY_PATH: ${{ secrets.NOTARIZE_KEY_P8_BASE64 && format('{0}/notarize_key.p8', runner.temp) || '' }}
-          NOTARIZE_KEY_ID: ${{ secrets.NOTARIZE_KEY_ID }}
-          NOTARIZE_ISSUER_ID: ${{ secrets.NOTARIZE_ISSUER_ID }}
           VERSION: ${{ steps.version.outputs.version }}
           BUILD_NUMBER: ${{ github.run_number }}
         run: ./scripts/package_app.sh
 
-      - name: Create DMG
+      - name: Create DMG with drag-to-Applications layout
+        run: ./scripts/create_dmg.sh
+
+      - name: Sign DMG
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
+        if: env.CODESIGN_IDENTITY != '' && env.CODESIGN_IDENTITY != '-'
+        run: codesign --force --sign "$CODESIGN_IDENTITY" dist/Hypersync-MacOS.dmg
+
+      - name: Notarize DMG
+        env:
+          NOTARIZE_KEY_P8_BASE64: ${{ secrets.NOTARIZE_KEY_P8_BASE64 }}
+          NOTARIZE_KEY_ID: ${{ secrets.NOTARIZE_KEY_ID }}
+          NOTARIZE_ISSUER_ID: ${{ secrets.NOTARIZE_ISSUER_ID }}
+        if: env.NOTARIZE_KEY_P8_BASE64 != ''
         run: |
-          STAGING="$(mktemp -d)"
-          cp -R "dist/Hypersync.app" "$STAGING/"
-          ln -s /Applications "$STAGING/Applications"
-          hdiutil create \
-            -volname "Hypersync" \
-            -srcfolder "$STAGING" \
-            -ov \
-            -format UDZO \
-            "dist/Hypersync-MacOS.dmg"
-          rm -rf "$STAGING"
+          KEY_PATH="$RUNNER_TEMP/notarize_key.p8"
+          xcrun notarytool submit dist/Hypersync-MacOS.dmg \
+            --key "$KEY_PATH" \
+            --key-id "$NOTARIZE_KEY_ID" \
+            --issuer "$NOTARIZE_ISSUER_ID" \
+            --wait
+
+          xcrun stapler staple dist/Hypersync-MacOS.dmg || {
+            echo "Warning: stapling failed. The DMG is still notarized — Gatekeeper checks online."
+          }
 
       - name: Create ZIP (alternative)
         run: |

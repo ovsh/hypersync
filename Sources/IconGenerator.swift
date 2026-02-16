@@ -3,47 +3,29 @@ import SwiftUI
 
 @MainActor
 enum IconGenerator {
-    /// Renders the AppIconView at 1024x1024 and returns PNG data.
+    /// Loads the bundled AppIcon.png and returns its data.
     static func renderAppIconPNG() -> Data? {
-        let size: CGFloat = 1024
-        let view = AppIconView(size: size)
+        // Try bundle resource first (normal app runtime)
+        if let url = Bundle.module.url(forResource: "AppIcon", withExtension: "png"),
+           let data = try? Data(contentsOf: url) {
+            return data
+        }
 
-        let renderer = ImageRenderer(content: view)
-        renderer.scale = 1.0
-
-        guard let image = renderer.nsImage else { return nil }
-
-        let rep = NSBitmapImageRep(
-            bitmapDataPlanes: nil,
-            pixelsWide: Int(size),
-            pixelsHigh: Int(size),
-            bitsPerSample: 8,
-            samplesPerPixel: 4,
-            hasAlpha: true,
-            isPlanar: false,
-            colorSpaceName: .deviceRGB,
-            bytesPerRow: 0,
-            bitsPerPixel: 0
-        )!
-
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-        image.draw(
-            in: NSRect(x: 0, y: 0, width: size, height: size),
-            from: .zero,
-            operation: .copy,
-            fraction: 1.0
-        )
-        NSGraphicsContext.restoreGraphicsState()
-
-        return rep.representation(using: .png, properties: [:])
+        // Fallback: load from Sources/Resources relative to executable (CLI usage)
+        let execURL = URL(fileURLWithPath: CommandLine.arguments[0])
+        let sourceRoot = execURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fallbackURL = sourceRoot.appendingPathComponent("Sources/Resources/AppIcon.png")
+        return try? Data(contentsOf: fallbackURL)
     }
 
-    /// Generates an .icns file from the AppIconView and writes it to the given path.
+    /// Generates an .icns file from the bundled icon and writes it to the given path.
     @discardableResult
     static func generateICNS(to outputPath: String) -> Bool {
         guard let pngData = renderAppIconPNG() else {
-            print("IconGenerator: failed to render icon PNG")
+            print("IconGenerator: failed to load icon PNG")
             return false
         }
 

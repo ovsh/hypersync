@@ -17,6 +17,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.setActivationPolicy(.regular)
 
+        // Set dock icon from bundled PNG
+        if let iconData = IconGenerator.renderAppIconPNG(),
+           let iconImage = NSImage(data: iconData) {
+            NSApp.applicationIconImage = iconImage
+        }
+
         // Enable launch at login by default on first run
         let launchKey = "hasRegisteredLoginItem"
         if !UserDefaults.standard.bool(forKey: launchKey) {
@@ -33,25 +39,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag {
-            Self.showSkillsWindow()
-        }
+        Self.showSkillsWindow()
         return true
     }
 
     @MainActor static func showSkillsWindow() {
         NSApp.activate(ignoringOtherApps: true)
-        // SwiftUI Window scenes keep their NSWindow around even when closed
-        if let win = NSApp.windows.first(where: { $0.title == "Skills" }) {
-            win.makeKeyAndOrderFront(nil)
-        } else {
-            // Fallback: post notification for SwiftUI layer to call openWindow
-            NotificationCenter.default.post(name: .openSkillsWindow, object: nil)
-        }
+        // Let SwiftUI handle window lifecycle via openWindow(id:) in MenuView
+        NotificationCenter.default.post(name: .openSkillsWindow, object: nil)
     }
 }
 
-struct HyperSyncMacApp: App {
+struct HypersyncApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var appState = AppState()
 
@@ -67,6 +66,7 @@ struct HyperSyncMacApp: App {
                 .environmentObject(appState)
         }
         .windowResizability(.contentMinSize)
+        .defaultSize(width: 960, height: 640)
         .windowStyle(.hiddenTitleBar)
 
         Window("Hypersync Settings", id: "settings") {
