@@ -39,7 +39,7 @@ Any tool that reads from `~/.agents/` works out of the box. Need another path? A
 | Setting | Description |
 |---|---|
 | **Repository URL** | GitHub repo containing your shared config (HTTPS or SSH) |
-| **Scan roots** | Comma-separated paths within the repo to scan (default: `shared-global`) |
+| **Teams** | Team folders to sync (default: `everyone`). Auto-discovered from the repo. |
 | **Auto sync** | Enable periodic sync with configurable interval |
 
 ## Building from source

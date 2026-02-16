@@ -19,6 +19,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
     @Published var isDownloadingUpdate = false
     @Published var updateError: String?
     @Published var hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+    @Published var discoveredTeams: [TeamInfo] = []
 
     private static func restoreSyncStatus() -> SyncStatus {
         guard let raw = UserDefaults.standard.string(forKey: "lastSyncStatus") else { return .idle }
@@ -69,6 +70,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
 
         configureAutoSyncTimer()
         logStore.append(.info, "Hypersync started.")
+        discoverTeams()
 
         // Run setup check shortly after launch if remote is configured
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
@@ -172,6 +174,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
                     self.lastErrorMessage = nil
                     self.setupCheckPassed = true
                     self.logStore.append(.info, "Sync completed: updated global agent config")
+                    self.discoverTeams()
                     self.persistSyncState()
                     let durationMs = Int(Date().timeIntervalSince(syncStartedAt) * 1000)
                     Analytics.track(.syncCompleted(trigger: trigger, mappingCount: summary.mappingCount, durationMs: durationMs))
@@ -241,6 +244,12 @@ final class AppState: ObservableObject, @unchecked Sendable {
             "has_completed_onboarding": true,
             "auto_sync_enabled": settingsStore.settings.autoSyncEnabled
         ])
+    }
+
+    func discoverTeams() {
+        let checkoutPath = settingsStore.settings.checkoutPath.expandingTildePath
+        let registryRoot = URL(fileURLWithPath: checkoutPath)
+        discoveredTeams = TeamDiscovery.discover(registryRoot: registryRoot)
     }
 
     func openLogsFile() {
