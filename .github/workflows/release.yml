@@ -24,10 +24,11 @@ jobs:
             echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           else
+            # For main branch builds, use a timestamp-based version
             SHORT_SHA=$(git rev-parse --short HEAD)
-            DATE=$(date -u +%Y%m%d)
-            echo "version=0.0.0-dev.${DATE}.${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-            echo "tag=latest" >> "$GITHUB_OUTPUT"
+            DATE=$(date -u +%Y%m%d-%H%M%S)
+            echo "version=0.0.0-${DATE}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+            echo "tag=build-${DATE}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -94,12 +95,6 @@ jobs:
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
           [ -f "$KEYCHAIN_PATH" ] && security delete-keychain "$KEYCHAIN_PATH" || true
           rm -f "$RUNNER_TEMP/notarize_key.p8" "$RUNNER_TEMP/certificate.p12"
-
-      - name: Delete existing latest release
-        if: steps.version.outputs.tag == 'latest'
-        run: gh release delete latest --yes --cleanup-tag 2>/dev/null || true
-        env:
-          GH_TOKEN: ${{ github.token }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
