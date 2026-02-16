@@ -22,9 +22,22 @@ final class SettingsStore: ObservableObject {
         do {
             let data = try Data(contentsOf: settingsFileURL)
             settings = try JSONDecoder().decode(AppSettings.self, from: data)
+            migrateIfNeeded()
         } catch {
             saveAsync()
         }
+    }
+
+    private func migrateIfNeeded() {
+        var changed = false
+
+        // Migrate legacy "shared-global" scan root to "everyone"
+        if let idx = settings.scanRoots.firstIndex(of: "shared-global") {
+            settings.scanRoots[idx] = "everyone"
+            changed = true
+        }
+
+        if changed { saveAsync() }
     }
 
     private func saveAsync() {

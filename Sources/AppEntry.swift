@@ -2,6 +2,10 @@ import AppKit
 import ServiceManagement
 import SwiftUI
 
+extension Notification.Name {
+    static let openSkillsWindow = Notification.Name("openSkillsWindow")
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Kill any already-running instance before setting up
@@ -11,7 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             old.terminate()
         }
 
-        NSApp.setActivationPolicy(.accessory)
+        NSApp.setActivationPolicy(.regular)
 
         // Enable launch at login by default on first run
         let launchKey = "hasRegisteredLoginItem"
@@ -21,6 +25,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         Analytics.setup()
+
+        // Open Skills window on launch
+        DispatchQueue.main.async {
+            Self.showSkillsWindow()
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            Self.showSkillsWindow()
+        }
+        return true
+    }
+
+    @MainActor static func showSkillsWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        // SwiftUI Window scenes keep their NSWindow around even when closed
+        if let win = NSApp.windows.first(where: { $0.title == "Skills" }) {
+            win.makeKeyAndOrderFront(nil)
+        } else {
+            // Fallback: post notification for SwiftUI layer to call openWindow
+            NotificationCenter.default.post(name: .openSkillsWindow, object: nil)
+        }
     }
 }
 
@@ -35,14 +62,15 @@ struct HyperSyncMacApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        Window("Hypersync Settings", id: "settings") {
-            SettingsView()
-                .environmentObject(appState)
-        }
-        .windowResizability(.contentSize)
-
         Window("Skills", id: "skills") {
             SkillsView()
+                .environmentObject(appState)
+        }
+        .windowResizability(.contentMinSize)
+        .windowStyle(.hiddenTitleBar)
+
+        Window("Hypersync Settings", id: "settings") {
+            SettingsView()
                 .environmentObject(appState)
         }
         .windowResizability(.contentSize)

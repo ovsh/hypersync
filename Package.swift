@@ -10,13 +10,15 @@ let package = Package(
         .executable(name: "HyperSyncMac", targets: ["HyperSyncMac"])
     ],
     dependencies: [
-        .package(url: "https://github.com/PostHog/posthog-ios", from: "3.0.0")
+        .package(url: "https://github.com/PostHog/posthog-ios", from: "3.0.0"),
+        .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.4.0")
     ],
     targets: [
         .executableTarget(
             name: "HyperSyncMac",
             dependencies: [
-                .product(name: "PostHog", package: "posthog-ios")
+                .product(name: "PostHog", package: "posthog-ios"),
+                .product(name: "MarkdownUI", package: "swift-markdown-ui")
             ],
             path: "Sources",
             swiftSettings: [

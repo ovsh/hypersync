@@ -1,0 +1,18 @@
+# HyperSync Registry — Code Owners
+#
+# Each team's official skills/ and rules/ directories should be owned
+# by the team's leads. This ensures changes to official skills require
+# approval from the right people.
+#
+# Playground directories intentionally have no owners, so anyone can
+# contribute experimental skills. Promoting from playground to official
+# triggers the CODEOWNERS review automatically.
+#
+# Uncomment and customize the lines below for your org:
+
+# everyone/skills/       @myorg/org-leads
+# everyone/rules/        @myorg/org-leads
+# engineering/skills/    @myorg/eng-leads
+# engineering/rules/     @myorg/eng-leads
+# product/skills/        @myorg/product-leads
+# product/rules/         @myorg/product-leads

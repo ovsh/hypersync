@@ -110,6 +110,8 @@ struct ManifestLoader {
                     results.append(MappingItem(source: relativePath, destination: dest, kind: .directory, strategy: .merge))
                 }
                 // Do NOT recurse into rules/
+            } else if name == "playground" {
+                // playground/ holds opt-in experimental skills — skip auto-sync
             } else {
                 // Not a known content dir — recurse deeper
                 results.append(contentsOf: scanForContent(at: child, relativeTo: registryRoot, fileManager: fileManager))

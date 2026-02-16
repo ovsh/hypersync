@@ -240,13 +240,52 @@ struct SettingsView: View {
         HyperCard {
             CardHeader(icon: .sync, title: "Sync")
 
-            FieldLabel("Scan roots") {
-                TextField("shared-global", text: $scanRootsText)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12, design: .monospaced))
-                Text("Comma-separated directory paths to scan for skills/ and rules/")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
+            FieldLabel("Teams") {
+                if appState.discoveredTeams.isEmpty {
+                    TextField("everyone", text: $scanRootsText)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12, design: .monospaced))
+                    Text("Comma-separated team folders to sync")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                } else {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(appState.discoveredTeams) { team in
+                            let isSubscribed = scanRootsSet.contains(team.folderName)
+                            let isEveryone = team.folderName == "everyone"
+                            HStack(spacing: 8) {
+                                Image(systemName: isSubscribed ? "checkmark.square.fill" : "square")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(isSubscribed ? Brand.indigoMid : Color.secondary.opacity(0.4))
+
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(team.displayName)
+                                        .font(.system(size: 12, weight: .medium))
+                                    if !team.description.isEmpty {
+                                        Text(team.description)
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+
+                                Spacer()
+
+                                if isEveryone {
+                                    Text("Always synced")
+                                        .font(.system(size: 9, weight: .medium))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                guard !isEveryone else { return }
+                                toggleTeamSubscription(team.folderName)
+                            }
+                            .opacity(isEveryone ? 0.7 : 1)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
             }
 
             FieldLabel("Local checkout") {
@@ -407,6 +446,24 @@ struct SettingsView: View {
                 .font(.system(size: 12))
                 .foregroundStyle(.primary.opacity(0.8))
         }
+    }
+
+    private var scanRootsSet: Set<String> {
+        Set(scanRootsText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
+    }
+
+    private func toggleTeamSubscription(_ folderName: String) {
+        var roots = scanRootsText
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        if let idx = roots.firstIndex(of: folderName) {
+            roots.remove(at: idx)
+        } else {
+            roots.append(folderName)
+        }
+        scanRootsText = roots.joined(separator: ", ")
     }
 
     private var launchAtLoginBinding: Binding<Bool> {

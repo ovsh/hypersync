@@ -7,19 +7,43 @@ HyperSync distributes your team's config to **Cursor, Claude Code, Codex, Kiro, 
 ## Getting Started
 
 1. Click **Use this template** on GitHub to create your team's config repo
-2. Edit the files under `shared-global/` to add your team's rules and skills
+2. Edit the files under `everyone/` to add org-wide rules and skills
 3. Commit and push to `main`
 4. Share the repo URL with your team -- they'll enter it in HyperSync's setup wizard
 
 ## Structure
 
 ```
-shared-global/
-  skills/          # Shared agent skills (synced to all tools)
-  rules/           # Shared rules (synced to Cursor, Claude, Roo, Windsurf)
-    .cursorrules   # Cursor-specific rules file
-    team-rules.md  # Universal team rules
+everyone/                    # Org-wide skills & rules (synced to everyone)
+  skills/
+  rules/
+  playground/                # Experimental skills (opt-in)
+    skills/
 ```
+
+### Multi-Team Setup
+
+Create a folder per team. Any top-level folder containing `skills/` or `rules/` is auto-discovered as a team:
+
+```
+everyone/                    # Org-wide (always synced)
+  skills/
+  rules/
+  playground/skills/
+engineering/                 # Engineering team
+  skills/
+  rules/
+  playground/skills/
+product/                     # Product team
+  skills/
+  rules/
+  playground/skills/
+CODEOWNERS                   # Governance
+```
+
+Team members select which teams to subscribe to in the HyperSync app. The `everyone/` team is always synced.
+
+You can create teams directly from the HyperSync app using the **+** button, or by creating the folder structure manually.
 
 ## Destinations
 
@@ -28,12 +52,26 @@ shared-global/
 | `skills/` | `~/.cursor/skills`, `~/.claude/skills`, `~/.codex/skills`, `~/.kiro/skills`, `~/.roo/skills`, `~/.agents/skills` |
 | `rules/` | `~/.cursor/rules`, `~/.claude/rules`, `~/.roo/rules`, `~/.windsurf/rules` |
 
-## Adding Content
+## Playground Skills
 
-Add files directly to the appropriate folders. HyperSync will sync them on the next pull.
+Each team has a `playground/skills/` directory for experimental skills. These are **not auto-synced** -- team members opt in to specific playground skills from the HyperSync app.
 
-For example, to add a new skill:
-1. Create a file in `shared-global/skills/my-skill.md`
-2. Commit and push
-3. Team members get it on their next sync (auto-syncs every 60 minutes by default)
-4. The skill appears in all agent tool directories listed above
+To promote a playground skill to official: move it from `playground/skills/` to `skills/` via a pull request.
+
+## Governance
+
+Use GitHub's `CODEOWNERS` file to control who can approve changes to each team's official skills:
+
+```
+# Official skills require team lead approval
+engineering/skills/    @myorg/eng-leads
+engineering/rules/     @myorg/eng-leads
+product/skills/        @myorg/product-leads
+
+# Playgrounds are open to anyone
+# (no CODEOWNERS entry = anyone can merge)
+```
+
+## Naming
+
+Skill folder names must be unique across all teams you subscribe to. If two teams need a similar skill, prefix them: `eng-code-review`, `product-code-review`.
