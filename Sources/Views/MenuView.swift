@@ -123,9 +123,6 @@ struct MenuView: View {
         }
         .padding(16)
         .frame(width: 280)
-        .onReceive(NotificationCenter.default.publisher(for: .openSkillsWindow)) { _ in
-            openWindow(id: "skills")
-        }
     }
 
     private var setupNoticeText: String {
