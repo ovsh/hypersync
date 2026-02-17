@@ -3,10 +3,6 @@ import ServiceManagement
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    /// Stored reference to SwiftUI's openWindow action, captured from the
-    /// MenuBarExtra label (which is rendered at app launch).
-    @MainActor static var openWindow: OpenWindowAction?
-
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Kill any already-running instance before setting up
         let dominated = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
@@ -32,31 +28,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         Analytics.setup()
 
-        // Skills window opening is handled by MenuBarLabel.onAppear,
-        // which fires once SwiftUI has set up the scene and the
-        // openWindow environment action is available.
+        Task { @MainActor in
+            WindowCoordinator.shared.requestInitialSkillsPresentation()
+        }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        Self.showSkillsWindow()
-        return true
-    }
-
-    @MainActor static func showSkillsWindow() {
-        NSApp.activate(ignoringOtherApps: true)
-
-        // 1. If the window already exists (opened before), just bring it to front.
-        for window in NSApp.windows where !window.isMiniaturized {
-            let id = window.identifier?.rawValue ?? ""
-            if id.contains("skills") || window.title == "Skills" {
-                window.makeKeyAndOrderFront(nil)
-                return
-            }
+        Task { @MainActor in
+            WindowCoordinator.shared.handleDockReopen(hasVisibleWindows: flag)
         }
-
-        // 2. Window hasn't been created yet (or was fully closed) — ask SwiftUI
-        //    to open it via the stored action captured from MenuBarLabel.
-        openWindow?(id: "skills")
+        return true
     }
 }
 
@@ -64,8 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 /// The MenuBarExtra label view. It is rendered immediately at app launch
 /// (unlike the popover content), so its `onAppear` reliably fires during
-/// startup. We use this to capture SwiftUI's `openWindow` action and to
-/// trigger the initial Skills window presentation.
+/// startup. We use this to capture SwiftUI's `openWindow` action.
 private struct MenuBarLabel: View {
     let iconName: String
     @Environment(\.openWindow) private var openWindow
@@ -73,11 +53,7 @@ private struct MenuBarLabel: View {
     var body: some View {
         Image(systemName: iconName)
             .onAppear {
-                AppDelegate.openWindow = openWindow
-                // Open the Skills window on initial app launch.
-                DispatchQueue.main.async {
-                    AppDelegate.showSkillsWindow()
-                }
+                WindowCoordinator.shared.register(openWindow: openWindow)
             }
     }
 }
@@ -107,12 +83,6 @@ struct HypersyncApp: App {
 
         Window("Hypersync Settings", id: "settings") {
             SettingsView()
-                .environmentObject(appState)
-        }
-        .windowResizability(.contentSize)
-
-        Window("Hypersync Setup", id: "onboarding") {
-            OnboardingView()
                 .environmentObject(appState)
         }
         .windowResizability(.contentSize)

@@ -89,7 +89,11 @@ struct OnboardingView: View {
         }
         .frame(width: 540, height: 500)
         .onAppear {
+            appState.beginOnboarding()
             Analytics.track(.onboardingStepViewed(step: 0, stepName: "welcome"))
+        }
+        .onDisappear {
+            appState.deferOnboardingIfNeeded()
         }
     }
 
