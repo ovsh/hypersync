@@ -99,6 +99,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private let syncService = SyncService()
     private let setupChecker = SetupChecker()
     private let updateChecker = UpdateChecker()
+    private let shouldDisableBackgroundJobs: Bool
 
     private var autoSyncTimer: Timer?
     private var updateCheckTimer: Timer?
@@ -108,6 +109,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         self.settingsStore = settingsStore
         self.logStore = logStore
         self.onboardingState = Self.restoreOnboardingState(settings: settingsStore.settings)
+        self.shouldDisableBackgroundJobs = ProcessInfo.processInfo.environment["HYPERSYNC_DISABLE_BACKGROUND_JOBS"] == "1"
 
         self.settingsObserver = settingsStore.$settings.sink { [weak self] _ in
             self?.configureAutoSyncTimer()
@@ -117,20 +119,22 @@ final class AppState: ObservableObject, @unchecked Sendable {
         logStore.append(.info, "Hypersync started.")
         discoverTeams()
 
-        // Run setup check shortly after launch if remote is configured
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-            guard let self else { return }
-            let remote = self.settingsStore.settings.remoteGitURL.trimmed
-            if !remote.isEmpty && GitSync.isGitHubRemote(remote) {
-                self.runSetupCheck()
+        if !shouldDisableBackgroundJobs {
+            // Run setup check shortly after launch if remote is configured
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                guard let self else { return }
+                let remote = self.settingsStore.settings.remoteGitURL.trimmed
+                if !remote.isEmpty && GitSync.isGitHubRemote(remote) {
+                    self.runSetupCheck()
+                }
             }
-        }
 
-        // Check for updates shortly after launch
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
-            self?.checkForUpdate()
+            // Check for updates shortly after launch
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+                self?.checkForUpdate()
+            }
+            configureUpdateCheckTimer()
         }
-        configureUpdateCheckTimer()
 
         // Ensure the new onboarding enum is persisted even for migrated users.
         if UserDefaults.standard.string(forKey: Self.onboardingStateKey) == nil {
@@ -458,6 +462,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
 
     private func configureAutoSyncTimer() {
         autoSyncTimer?.invalidate()
+        if shouldDisableBackgroundJobs { return }
 
         let settings = settingsStore.settings
         guard settings.autoSyncEnabled else {
@@ -475,6 +480,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
 
     private func configureUpdateCheckTimer() {
         updateCheckTimer?.invalidate()
+        if shouldDisableBackgroundJobs { return }
         // Check for updates every 4 hours
         updateCheckTimer = Timer.scheduledTimer(withTimeInterval: 4 * 60 * 60, repeats: true) { [weak self] _ in
             self?.checkForUpdate()

@@ -46,10 +46,11 @@ private struct WizardButton: View {
 
 struct OnboardingView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.dismiss) private var dismiss
     @State private var currentStep = 0
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .topTrailing) {
             VisualEffectBackground(material: .sidebar, blendingMode: .behindWindow)
                 .ignoresSafeArea()
 
@@ -86,6 +87,22 @@ struct OnboardingView: View {
                 }
                 .padding(.bottom, 28)
             }
+
+            Button(action: closeOnboarding) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 24)
+                    .background(
+                        Circle()
+                            .fill(Color.primary.opacity(0.07))
+                    )
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.escape, modifiers: [])
+            .help("Close onboarding")
+            .padding(.top, 14)
+            .padding(.trailing, 14)
         }
         .frame(width: 540, height: 500)
         .onAppear {
@@ -105,6 +122,12 @@ struct OnboardingView: View {
         if nextStep < Self.stepNames.count {
             Analytics.track(.onboardingStepViewed(step: nextStep, stepName: Self.stepNames[nextStep]))
         }
+    }
+
+    private func closeOnboarding() {
+        Analytics.track(.onboardingSkipped)
+        appState.deferOnboardingIfNeeded()
+        dismiss()
     }
 }
 
@@ -369,9 +392,7 @@ private struct ChooseRepoStep: View {
 
     private var createFlow: some View {
         VStack(spacing: 0) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 32))
-                .foregroundStyle(Brand.indigo)
+            HyperIconView(icon: .registry, size: 34, color: Brand.indigo)
                 .padding(.bottom, 20)
 
             Text("Create Your AI Config")

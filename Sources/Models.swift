@@ -17,6 +17,11 @@ enum MappingStrategy: String, Codable {
     case merge
 }
 
+enum ScanMode: String, Codable, CaseIterable {
+    case auto
+    case explicit
+}
+
 struct MappingItem: Codable, Hashable {
     var source: String
     var destination: String
@@ -31,6 +36,7 @@ struct Manifest: Codable {
 
 struct AppSettings: Codable {
     var remoteGitURL: String
+    var scanMode: ScanMode
     var scanRoots: [String]
     var checkoutPath: String
     var autoSyncEnabled: Bool
@@ -39,6 +45,7 @@ struct AppSettings: Codable {
 
     enum CodingKeys: String, CodingKey {
         case remoteGitURL
+        case scanMode = "scan_mode"
         case scanRoots = "scan_roots"
         case checkoutPath
         case autoSyncEnabled
@@ -52,14 +59,24 @@ struct AppSettings: Codable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         remoteGitURL = try c.decode(String.self, forKey: .remoteGitURL)
         scanRoots = try c.decodeIfPresent([String].self, forKey: .scanRoots) ?? Self.defaultScanRoots
+        scanMode = try c.decodeIfPresent(ScanMode.self, forKey: .scanMode) ?? Self.inferLegacyScanMode(scanRoots: scanRoots)
         checkoutPath = try c.decode(String.self, forKey: .checkoutPath)
         autoSyncEnabled = try c.decode(Bool.self, forKey: .autoSyncEnabled)
         autoSyncIntervalMinutes = try c.decode(Int.self, forKey: .autoSyncIntervalMinutes)
         enabledCommunitySkills = try c.decodeIfPresent([String].self, forKey: .enabledCommunitySkills) ?? []
     }
 
-    init(remoteGitURL: String, scanRoots: [String], checkoutPath: String, autoSyncEnabled: Bool, autoSyncIntervalMinutes: Int, enabledCommunitySkills: [String] = []) {
+    init(
+        remoteGitURL: String,
+        scanMode: ScanMode,
+        scanRoots: [String],
+        checkoutPath: String,
+        autoSyncEnabled: Bool,
+        autoSyncIntervalMinutes: Int,
+        enabledCommunitySkills: [String] = []
+    ) {
         self.remoteGitURL = remoteGitURL
+        self.scanMode = scanMode
         self.scanRoots = scanRoots
         self.checkoutPath = checkoutPath
         self.autoSyncEnabled = autoSyncEnabled
@@ -69,10 +86,24 @@ struct AppSettings: Codable {
 
     static let defaultScanRoots = ["everyone"]
 
+    private static func inferLegacyScanMode(scanRoots: [String]) -> ScanMode {
+        let normalized = scanRoots
+            .map(\.trimmed)
+            .filter { !$0.isEmpty }
+
+        // Legacy defaults were ["everyone"]. Treat that as auto mode so
+        // repositories that don't have an "everyone/" folder still sync.
+        if normalized.isEmpty || normalized == defaultScanRoots {
+            return .auto
+        }
+        return .explicit
+    }
+
     static func defaults() -> AppSettings {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return AppSettings(
             remoteGitURL: "",
+            scanMode: .auto,
             scanRoots: defaultScanRoots,
             checkoutPath: "\(home)/Library/Application Support/HyperSync/registry",
             autoSyncEnabled: true,

@@ -2,14 +2,11 @@ import Foundation
 
 enum ManifestLoaderError: LocalizedError {
     case noMappings
-    case scanRootMissing(String)
 
     var errorDescription: String? {
         switch self {
         case .noMappings:
             return "Scan found no skills/ or rules/ directories under the configured scan roots."
-        case .scanRootMissing(let path):
-            return "Scan root does not exist: \(path)"
         }
     }
 }
@@ -48,7 +45,8 @@ struct ManifestLoader {
         for root in scanRoots {
             let rootURL = registryRoot.appendingPathComponent(root).standardizedFileURL
             guard fileManager.fileExists(atPath: rootURL.path) else {
-                throw ManifestLoaderError.scanRootMissing(rootURL.path)
+                logger(.warn, "Skipping missing scan root: \(rootURL.path)")
+                continue
             }
             logger(.info, "Scanning \(root)/ for skills and rules directories")
             let found = scanForContent(at: rootURL, relativeTo: registryRoot, fileManager: fileManager)

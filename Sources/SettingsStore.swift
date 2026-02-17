@@ -56,6 +56,16 @@ final class SettingsStore: ObservableObject {
     }
 
     static func appSupportDirectory() -> URL {
+        if let override = ProcessInfo.processInfo.environment["HYPERSYNC_APP_SUPPORT_DIR"],
+           !override.isEmpty {
+            let custom = URL(fileURLWithPath: override, isDirectory: true)
+            let fm = FileManager.default
+            if !fm.fileExists(atPath: custom.path) {
+                try? fm.createDirectory(at: custom, withIntermediateDirectories: true)
+            }
+            return custom
+        }
+
         let fileManager = FileManager.default
         let base = fileManager.homeDirectoryForCurrentUser
             .appendingPathComponent("Library")

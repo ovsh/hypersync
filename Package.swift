@@ -31,6 +31,11 @@ let package = Package(
                 .unsafeFlags(["-Xfrontend", "-disable-round-trip-debug-types"],
                              .when(configuration: .release))
             ]
+        ),
+        .testTarget(
+            name: "HypersyncXCUITests",
+            dependencies: ["Hypersync"],
+            path: "Tests/HypersyncXCUITests"
         )
     ]
 )

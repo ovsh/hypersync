@@ -39,7 +39,8 @@ Any tool that reads from `~/.agents/` works out of the box. Need another path? A
 | Setting | Description |
 |---|---|
 | **Repository URL** | GitHub repo containing your shared config (HTTPS or SSH) |
-| **Teams** | Team folders to sync (default: `everyone`). Auto-discovered from the repo. |
+| **Scan mode** | `Auto` (recommended) syncs all discovered team roots; `Selected` syncs only configured roots. |
+| **Teams** | Team folders used in `Selected` mode. |
 | **Auto sync** | Enable periodic sync with configurable interval |
 
 ## Building from source
@@ -84,6 +85,37 @@ VERSION=0.3.0 ./scripts/package_app.sh
 Tags the commit and pushes. GitHub Actions builds, signs, notarizes, and publishes a release with DMG + ZIP.
 
 > **CI note:** Uses the Xcode-bundled Swift toolchain (not the standalone swift.org toolchain).
+
+## E2E testing
+
+### Smoke test (AppleScript/UI scripting)
+
+```bash
+./scripts/test_e2e_smoke.sh
+```
+
+This validates:
+- Skills window appears on launch
+- onboarding appears on first run
+- closing Skills and reopening brings it back
+
+Requires Terminal to be enabled in **System Settings > Privacy & Security > Accessibility**.
+
+### XCUITests
+
+```bash
+./scripts/run_xcuitests.sh
+```
+
+The script builds an ad-hoc app with a test bundle id and runs the `HypersyncXCUITests`
+SwiftPM test target against an isolated app-support directory.
+
+It validates:
+- `HypersyncXCUITests.testLaunchShowsSkillsWindow`
+- `HypersyncXCUITests.testFirstRunShowsOnboarding`
+- `HypersyncXCUITests.testReopenAfterClosingSkillsWindow`
+
+Requires Terminal to be enabled in **System Settings > Privacy & Security > Accessibility**.
 
 ## Data
 

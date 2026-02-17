@@ -8,12 +8,14 @@ struct SyncSummary {
 
 struct SyncService {
     private let gitSync = GitSync()
+    private let syncPlanner = SyncPlanner()
     private let manifestLoader = ManifestLoader()
     private let fileSyncEngine = FileSyncEngine()
 
     func run(settings: AppSettings, logger: @escaping (LogLevel, String) -> Void) throws -> SyncSummary {
         let registryRoot = try gitSync.prepareRegistry(settings: settings, logger: logger)
-        let manifest = try manifestLoader.load(registryRoot: registryRoot, scanRoots: settings.scanRoots, logger: logger)
+        let plan = try syncPlanner.plan(settings: settings, registryRoot: registryRoot, logger: logger)
+        let manifest = try manifestLoader.load(registryRoot: registryRoot, scanRoots: plan.selectedRoots, logger: logger)
         logger(.info, "Loaded manifest v\(manifest.version) with \(manifest.mappings.count) mappings")
 
         let result = try fileSyncEngine.apply(

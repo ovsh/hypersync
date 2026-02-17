@@ -19,14 +19,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.applicationIconImage = iconImage
         }
 
-        // Enable launch at login by default on first run
-        let launchKey = "hasRegisteredLoginItem"
-        if !UserDefaults.standard.bool(forKey: launchKey) {
-            try? SMAppService.mainApp.register()
-            UserDefaults.standard.set(true, forKey: launchKey)
+        let env = ProcessInfo.processInfo.environment
+        let shouldSkipLoginItem = env["HYPERSYNC_SKIP_LOGIN_ITEM"] == "1"
+        let shouldDisableAnalytics = env["HYPERSYNC_DISABLE_ANALYTICS"] == "1"
+
+        // Enable launch at login by default on first run unless explicitly disabled
+        if !shouldSkipLoginItem {
+            let launchKey = "hasRegisteredLoginItem"
+            if !UserDefaults.standard.bool(forKey: launchKey) {
+                try? SMAppService.mainApp.register()
+                UserDefaults.standard.set(true, forKey: launchKey)
+            }
         }
 
-        Analytics.setup()
+        if !shouldDisableAnalytics {
+            Analytics.setup()
+        }
 
         Task { @MainActor in
             WindowCoordinator.shared.requestInitialSkillsPresentation()

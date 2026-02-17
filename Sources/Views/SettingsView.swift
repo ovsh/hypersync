@@ -209,51 +209,89 @@ struct SettingsView: View {
         HyperCard {
             CardHeader(icon: .sync, title: "Sync")
 
+            FieldLabel("Scan mode") {
+                Picker("", selection: $draft.scanMode) {
+                    Text("Auto")
+                        .tag(ScanMode.auto)
+                    Text("Selected")
+                        .tag(ScanMode.explicit)
+                }
+                .pickerStyle(.segmented)
+
+                Text(draft.scanMode == .auto
+                     ? "Auto syncs all discovered teams in the registry checkout."
+                     : "Selected mode syncs only the team roots you choose below.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            }
+
             FieldLabel("Teams") {
-                if appState.discoveredTeams.isEmpty {
-                    TextField("everyone", text: $scanRootsText)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12, design: .monospaced))
-                    Text("Comma-separated team folders to sync")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                } else {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(appState.discoveredTeams) { team in
-                            let isSubscribed = scanRootsSet.contains(team.folderName)
-                            let isEveryone = team.folderName == "everyone"
-                            HStack(spacing: 8) {
-                                Image(systemName: isSubscribed ? "checkmark.square.fill" : "square")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(isSubscribed ? Brand.indigoMid : Color.secondary.opacity(0.4))
+                if draft.scanMode == .auto {
+                    if appState.discoveredTeams.isEmpty {
+                        Text("Teams will be discovered from the synced registry checkout.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(appState.discoveredTeams) { team in
+                                HStack(spacing: 8) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(Brand.indigoMid)
 
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(team.displayName)
-                                        .font(.system(size: 12, weight: .medium))
-                                    if !team.description.isEmpty {
-                                        Text(team.description)
-                                            .font(.system(size: 10))
-                                            .foregroundStyle(.tertiary)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(team.displayName)
+                                            .font(.system(size: 12, weight: .medium))
+                                        if !team.description.isEmpty {
+                                            Text(team.description)
+                                                .font(.system(size: 10))
+                                                .foregroundStyle(.tertiary)
+                                        }
                                     }
-                                }
 
-                                Spacer()
-
-                                if isEveryone {
-                                    Text("Always synced")
-                                        .font(.system(size: 9, weight: .medium))
-                                        .foregroundStyle(.tertiary)
+                                    Spacer()
                                 }
                             }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                guard !isEveryone else { return }
-                                toggleTeamSubscription(team.folderName)
-                            }
-                            .opacity(isEveryone ? 0.7 : 1)
                         }
+                        .padding(.vertical, 4)
                     }
-                    .padding(.vertical, 4)
+                } else {
+                    if appState.discoveredTeams.isEmpty {
+                        TextField("everyone, engineering", text: $scanRootsText)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                        Text("Comma-separated team folders to sync")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(appState.discoveredTeams) { team in
+                                let isSubscribed = scanRootsSet.contains(team.folderName)
+                                HStack(spacing: 8) {
+                                    Image(systemName: isSubscribed ? "checkmark.square.fill" : "square")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(isSubscribed ? Brand.indigoMid : Color.secondary.opacity(0.4))
+
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(team.displayName)
+                                            .font(.system(size: 12, weight: .medium))
+                                        if !team.description.isEmpty {
+                                            Text(team.description)
+                                                .font(.system(size: 10))
+                                                .foregroundStyle(.tertiary)
+                                        }
+                                    }
+
+                                    Spacer()
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    toggleTeamSubscription(team.folderName)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
                 }
             }
 
@@ -462,13 +500,22 @@ struct SettingsView: View {
     private func saveSettings() {
         var next = draft
         next.remoteGitURL = draft.remoteGitURL.trimmed
-        next.scanRoots = scanRootsText
+        let parsedRoots = scanRootsText
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
-        if next.scanRoots.isEmpty {
+
+        if draft.scanMode == .explicit {
+            next.scanRoots = parsedRoots.isEmpty ? AppSettings.defaultScanRoots : parsedRoots
+        } else if !parsedRoots.isEmpty {
+            // Preserve manual roots as a fallback even in auto mode.
+            next.scanRoots = parsedRoots
+        } else if !appState.discoveredTeams.isEmpty {
+            next.scanRoots = appState.discoveredTeams.map(\.folderName)
+        } else {
             next.scanRoots = AppSettings.defaultScanRoots
         }
+
         next.checkoutPath = draft.checkoutPath.trimmed
 
         appState.saveSettings(next)
