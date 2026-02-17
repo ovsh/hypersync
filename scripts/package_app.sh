@@ -34,6 +34,19 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$BIN_PATH" "$MACOS_DIR/$EXECUTABLE_NAME"
 chmod +x "$MACOS_DIR/$EXECUTABLE_NAME"
 
+# Copy SPM resource bundle so Bundle.module works at runtime
+BIN_DIR="$(dirname "$BIN_PATH")"
+SPM_BUNDLE="$BIN_DIR/Hypersync_Hypersync.bundle"
+if [[ -d "$SPM_BUNDLE" ]]; then
+  cp -R "$SPM_BUNDLE" "$RESOURCES_DIR/"
+  echo "Copied SPM resource bundle to app"
+fi
+
+# Also copy AppIcon.png directly so Bundle.main can find it
+if [[ -f "$ROOT_DIR/Sources/Resources/AppIcon.png" ]]; then
+  cp "$ROOT_DIR/Sources/Resources/AppIcon.png" "$RESOURCES_DIR/AppIcon.png"
+fi
+
 # Generate app icon
 echo "Generating app icon..."
 "$MACOS_DIR/$EXECUTABLE_NAME" --generate-icon "$RESOURCES_DIR/AppIcon.icns" || {
