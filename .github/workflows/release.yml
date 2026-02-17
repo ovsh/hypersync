@@ -68,13 +68,35 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
         run: ./scripts/package_app.sh
 
-      - name: Create DMG with drag-to-Applications layout
-        run: ./scripts/create_dmg.sh
+      - name: Create ZIP (always)
+        run: |
+          cd dist
+          ditto -c -k --sequesterRsrc --keepParent "Hypersync.app" \
+            "Hypersync-MacOS.zip"
+
+      - name: Create DMG with drag-to-Applications layout (retry)
+        id: create_dmg
+        continue-on-error: true
+        run: |
+          for attempt in 1 2 3; do
+            if ./scripts/create_dmg.sh; then
+              echo "created=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "DMG creation attempt $attempt failed."
+            if [[ "$attempt" -lt 3 ]]; then
+              sleep 3
+            fi
+          done
+
+          echo "created=false" >> "$GITHUB_OUTPUT"
+          echo "::warning::DMG creation failed after retries; continuing with ZIP artifact."
+          exit 1
 
       - name: Sign DMG
         env:
           CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
-        if: env.CODESIGN_IDENTITY != '' && env.CODESIGN_IDENTITY != '-'
+        if: steps.create_dmg.outputs.created == 'true' && env.CODESIGN_IDENTITY != '' && env.CODESIGN_IDENTITY != '-'
         run: codesign --force --sign "$CODESIGN_IDENTITY" dist/Hypersync-MacOS.dmg
 
       - name: Notarize DMG
@@ -82,7 +104,7 @@ jobs:
           NOTARIZE_KEY_P8_BASE64: ${{ secrets.NOTARIZE_KEY_P8_BASE64 }}
           NOTARIZE_KEY_ID: ${{ secrets.NOTARIZE_KEY_ID }}
           NOTARIZE_ISSUER_ID: ${{ secrets.NOTARIZE_ISSUER_ID }}
-        if: env.NOTARIZE_KEY_P8_BASE64 != ''
+        if: steps.create_dmg.outputs.created == 'true' && env.NOTARIZE_KEY_P8_BASE64 != ''
         run: |
           KEY_PATH="$RUNNER_TEMP/notarize_key.p8"
           xcrun notarytool submit dist/Hypersync-MacOS.dmg \
@@ -95,12 +117,6 @@ jobs:
             echo "Warning: stapling failed. The DMG is still notarized — Gatekeeper checks online."
           }
 
-      - name: Create ZIP (alternative)
-        run: |
-          cd dist
-          ditto -c -k --sequesterRsrc --keepParent "Hypersync.app" \
-            "Hypersync-MacOS.zip"
-
       - name: Clean up signing secrets
         if: always()
         run: |
@@ -108,28 +124,55 @@ jobs:
           [ -f "$KEYCHAIN_PATH" ] && security delete-keychain "$KEYCHAIN_PATH" || true
           rm -f "$RUNNER_TEMP/notarize_key.p8" "$RUNNER_TEMP/certificate.p12"
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: ${{ steps.version.outputs.tag == 'latest' && 'Latest Build' || steps.version.outputs.tag }}
-          prerelease: ${{ steps.version.outputs.prerelease }}
-          files: |
-            dist/Hypersync-MacOS.dmg
-            dist/Hypersync-MacOS.zip
-          body: |
-            ## Install
+      - name: Ensure GitHub Release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          TITLE="${{ steps.version.outputs.tag == 'latest' && 'Latest Build' || steps.version.outputs.tag }}"
+          PRERELEASE_FLAG=""
+          if [[ "${{ steps.version.outputs.prerelease }}" == "true" ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
 
-            **Option A — DMG (recommended)**
-            1. Download **Hypersync-MacOS.dmg**
-            2. Open the DMG and drag **Hypersync** to Applications
-            3. Launch from Applications or Spotlight
+          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+          cat > "$NOTES_FILE" <<'EOF'
+          ## Install
 
-            **Option B — ZIP**
-            1. Download **Hypersync-MacOS.zip**
-            2. Unzip and move **Hypersync.app** to `/Applications`
-            3. Launch from Applications or Spotlight
+          **Option A — DMG (recommended)**
+          1. Download **Hypersync-MacOS.dmg**
+          2. Open the DMG and drag **Hypersync** to Applications
+          3. Launch from Applications or Spotlight
 
-            Then click the menu bar icon → **Settings** to configure.
+          **Option B — ZIP**
+          1. Download **Hypersync-MacOS.zip**
+          2. Unzip and move **Hypersync.app** to `/Applications`
+          3. Launch from Applications or Spotlight
 
-            > Requires macOS 14 (Sonoma) or later. Universal binary (Apple Silicon + Intel).
+          Then click the menu bar icon → **Settings** to configure.
+
+          > Requires macOS 14 (Sonoma) or later. Universal binary (Apple Silicon + Intel).
+          EOF
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$TITLE" $PRERELEASE_FLAG --notes-file "$NOTES_FILE"
+          else
+            gh release create "$TAG" --title "$TITLE" $PRERELEASE_FLAG --notes-file "$NOTES_FILE"
+          fi
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          FILES=()
+
+          [[ -f dist/Hypersync-MacOS.zip ]] && FILES+=("dist/Hypersync-MacOS.zip")
+          [[ -f dist/Hypersync-MacOS.dmg ]] && FILES+=("dist/Hypersync-MacOS.dmg")
+
+          if [[ "${#FILES[@]}" -eq 0 ]]; then
+            echo "No release artifacts found in dist/." >&2
+            exit 1
+          fi
+
+          gh release upload "$TAG" "${FILES[@]}" --clobber
