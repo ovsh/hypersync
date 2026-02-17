@@ -3,10 +3,35 @@ import SwiftUI
 
 @MainActor
 enum IconGenerator {
+    /// Safe SPM resource bundle lookup — returns nil instead of crashing.
+    /// `Bundle.module` calls `fatalError` when the resource bundle is missing
+    /// (e.g. in a packaged .app where the SPM bundle wasn't copied).
+    private static let spmResourceBundle: Bundle? = {
+        let bundleName = "Hypersync_Hypersync"
+        let candidates = [
+            Bundle.main.resourceURL,
+            Bundle.main.bundleURL,
+            Bundle(for: NSApplication.self).resourceURL,
+        ]
+        for candidate in candidates {
+            if let bundleURL = candidate?.appendingPathComponent(bundleName + ".bundle"),
+               let bundle = Bundle(url: bundleURL) {
+                return bundle
+            }
+        }
+        return nil
+    }()
+
     /// Loads the bundled AppIcon.png and returns its data.
     static func renderAppIconPNG() -> Data? {
-        // Try bundle resource first (normal app runtime)
-        if let url = Bundle.module.url(forResource: "AppIcon", withExtension: "png"),
+        // Try the app bundle's Resources directory first (.app/Contents/Resources/)
+        if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "png"),
+           let data = try? Data(contentsOf: url) {
+            return data
+        }
+
+        // Try SPM resource bundle (works with swift run / development)
+        if let url = spmResourceBundle?.url(forResource: "AppIcon", withExtension: "png"),
            let data = try? Data(contentsOf: url) {
             return data
         }
