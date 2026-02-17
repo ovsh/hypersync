@@ -3,6 +3,19 @@ import Combine
 import Foundation
 import SwiftUI
 
+enum OnboardingState: String {
+    case notStarted
+    case inProgress
+    case deferred
+    case completed
+}
+
+enum ManualSyncAction {
+    case onboarding
+    case settings
+    case sync
+}
+
 final class AppState: ObservableObject, @unchecked Sendable {
     @Published var isSyncing = false
     @Published var syncStatus: SyncStatus = AppState.restoreSyncStatus()
@@ -18,8 +31,12 @@ final class AppState: ObservableObject, @unchecked Sendable {
     @Published var isCheckingForUpdate = false
     @Published var isDownloadingUpdate = false
     @Published var updateError: String?
-    @Published var hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+    @Published var onboardingState: OnboardingState
+    @Published private(set) var onboardingPresentationRequestID = 0
     @Published var discoveredTeams: [TeamInfo] = []
+
+    private static let onboardingStateKey = "onboardingState"
+    private static let legacyOnboardingCompletedKey = "hasCompletedOnboarding"
 
     private static func restoreSyncStatus() -> SyncStatus {
         guard let raw = UserDefaults.standard.string(forKey: "lastSyncStatus") else { return .idle }
@@ -49,6 +66,33 @@ final class AppState: ObservableObject, @unchecked Sendable {
         }
     }
 
+    private static func restoreOnboardingState(settings: AppSettings) -> OnboardingState {
+        let defaults = UserDefaults.standard
+
+        if let raw = defaults.string(forKey: onboardingStateKey),
+           let state = OnboardingState(rawValue: raw) {
+            return state
+        }
+
+        if defaults.bool(forKey: legacyOnboardingCompletedKey) {
+            return .completed
+        }
+
+        // Migration: older versions had only a boolean flag. If a remote already
+        // exists, treat onboarding as done rather than forcing the wizard.
+        if !settings.remoteGitURL.trimmed.isEmpty {
+            return .completed
+        }
+
+        return .notStarted
+    }
+
+    private func persistOnboardingState() {
+        let defaults = UserDefaults.standard
+        defaults.set(onboardingState.rawValue, forKey: Self.onboardingStateKey)
+        defaults.set(onboardingState == .completed, forKey: Self.legacyOnboardingCompletedKey)
+    }
+
     let settingsStore: SettingsStore
     let logStore: LogStore
 
@@ -63,6 +107,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
     init(settingsStore: SettingsStore = SettingsStore(), logStore: LogStore = LogStore()) {
         self.settingsStore = settingsStore
         self.logStore = logStore
+        self.onboardingState = Self.restoreOnboardingState(settings: settingsStore.settings)
 
         self.settingsObserver = settingsStore.$settings.sink { [weak self] _ in
             self?.configureAutoSyncTimer()
@@ -86,6 +131,11 @@ final class AppState: ObservableObject, @unchecked Sendable {
             self?.checkForUpdate()
         }
         configureUpdateCheckTimer()
+
+        // Ensure the new onboarding enum is persisted even for migrated users.
+        if UserDefaults.standard.string(forKey: Self.onboardingStateKey) == nil {
+            persistOnboardingState()
+        }
     }
 
     deinit {
@@ -126,6 +176,39 @@ final class AppState: ObservableObject, @unchecked Sendable {
         if setupCheckPassed == false { return true }
         if setupCheckPassed == nil && lastSyncAt == nil { return true }
         return false
+    }
+
+    var hasCompletedOnboarding: Bool {
+        onboardingState == .completed
+    }
+
+    var requiresOnboarding: Bool {
+        guard onboardingState != .completed else { return false }
+        return settingsStore.settings.remoteGitURL.trimmed.isEmpty
+    }
+
+    var manualSyncAction: ManualSyncAction {
+        if requiresOnboarding { return .onboarding }
+        if settingsStore.settings.remoteGitURL.trimmed.isEmpty { return .settings }
+        return .sync
+    }
+
+    func beginOnboarding() {
+        guard onboardingState != .completed else { return }
+        guard onboardingState != .inProgress else { return }
+        onboardingState = .inProgress
+        persistOnboardingState()
+    }
+
+    func requestOnboardingPresentation() {
+        beginOnboarding()
+        onboardingPresentationRequestID &+= 1
+    }
+
+    func deferOnboardingIfNeeded() {
+        guard onboardingState == .inProgress else { return }
+        onboardingState = .deferred
+        persistOnboardingState()
     }
 
     func syncNow(trigger: String) {
@@ -237,8 +320,9 @@ final class AppState: ObservableObject, @unchecked Sendable {
     }
 
     func completeOnboarding() {
-        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
-        hasCompletedOnboarding = true
+        guard onboardingState != .completed else { return }
+        onboardingState = .completed
+        persistOnboardingState()
         Analytics.track(.onboardingCompleted)
         Analytics.identify(properties: [
             "has_completed_onboarding": true,

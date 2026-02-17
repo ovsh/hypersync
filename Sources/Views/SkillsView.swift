@@ -30,7 +30,6 @@ enum SidebarSelection: Hashable {
 
 struct SkillsView: View {
     @EnvironmentObject var appState: AppState
-    @Environment(\.openWindow) private var openWindow
     @State private var teamGroups: [TeamSkillGroup] = []
     @State private var localSkills: [SkillInfo] = []
     @State private var legacyPlaygroundSkills: [SkillInfo] = []
@@ -51,6 +50,9 @@ struct SkillsView: View {
     @State private var skillToPush: SkillInfo? = nil
     @State private var showNewSkillSheet = false
     @State private var newSkillName = ""
+    @State private var isOnboardingPresented = false
+    @State private var hasEvaluatedInitialOnboarding = false
+    @State private var handledOnboardingRequestID = 0
 
     // MARK: - Derived State
 
@@ -97,13 +99,7 @@ struct SkillsView: View {
                 isSyncing: isSyncing,
                 appIsSyncing: appState.isSyncing,
                 onSync: syncPlaygroundSkills,
-                onSyncNow: {
-                    if !appState.hasCompletedOnboarding || appState.settingsStore.settings.remoteGitURL.trimmed.isEmpty {
-                        openWindow(id: "onboarding")
-                    } else {
-                        appState.syncNow(trigger: "manual")
-                    }
-                },
+                onSyncNow: handleSyncNowAction,
                 onNewSkill: { showNewSkillSheet = true },
                 onNewTeam: { showCreateTeam = true }
             )
@@ -142,6 +138,12 @@ struct SkillsView: View {
         }
         .sheet(isPresented: $showCreateTeam) { createTeamSheet }
         .sheet(isPresented: $showNewSkillSheet) { newSkillSheet }
+        .sheet(isPresented: $isOnboardingPresented, onDismiss: {
+            appState.deferOnboardingIfNeeded()
+        }) {
+            OnboardingView()
+                .environmentObject(appState)
+        }
         .confirmationDialog(
             "Push to which team\u{2019}s playground?",
             isPresented: Binding(
@@ -161,16 +163,15 @@ struct SkillsView: View {
             loadSkills()
             enabledPlaygroundSkills = Set(appState.settingsStore.settings.enabledCommunitySkills)
 
-            // Trigger onboarding on first launch (moved from MenuView)
-            if !appState.hasCompletedOnboarding {
-                if appState.settingsStore.settings.remoteGitURL.trimmed.isEmpty {
-                    DispatchQueue.main.async {
-                        openWindow(id: "onboarding")
-                    }
-                } else {
-                    appState.completeOnboarding()
-                }
+            handleOnboardingPresentationRequest()
+
+            if !hasEvaluatedInitialOnboarding {
+                hasEvaluatedInitialOnboarding = true
+                presentOnboardingIfNeeded()
             }
+        }
+        .onChange(of: appState.onboardingPresentationRequestID) { _, _ in
+            handleOnboardingPresentationRequest()
         }
     }
 
@@ -306,11 +307,7 @@ struct SkillsView: View {
 
                     Button {
                         if isTeam {
-                            if !appState.hasCompletedOnboarding || appState.settingsStore.settings.remoteGitURL.trimmed.isEmpty {
-                                openWindow(id: "onboarding")
-                            } else {
-                                appState.syncNow(trigger: "manual")
-                            }
+                            handleSyncNowAction()
                         } else {
                             showNewSkillSheet = true
                         }
@@ -419,6 +416,31 @@ struct SkillsView: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    private func presentOnboardingIfNeeded() {
+        guard appState.requiresOnboarding else { return }
+        appState.requestOnboardingPresentation()
+        handleOnboardingPresentationRequest()
+    }
+
+    private func handleSyncNowAction() {
+        switch appState.manualSyncAction {
+        case .onboarding:
+            appState.requestOnboardingPresentation()
+            handleOnboardingPresentationRequest()
+        case .settings:
+            WindowCoordinator.shared.showSettingsWindow()
+        case .sync:
+            appState.syncNow(trigger: "manual")
+        }
+    }
+
+    private func handleOnboardingPresentationRequest() {
+        let requestID = appState.onboardingPresentationRequestID
+        guard requestID > handledOnboardingRequestID else { return }
+        handledOnboardingRequestID = requestID
+        isOnboardingPresented = true
     }
 
     // MARK: - Message Banner

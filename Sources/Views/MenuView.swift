@@ -3,7 +3,6 @@ import SwiftUI
 
 struct MenuView: View {
     @EnvironmentObject var appState: AppState
-    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -32,8 +31,7 @@ struct MenuView: View {
             // Error (conditional, hidden during auth setup since button subtitle handles it)
             if let error = appState.lastErrorMessage, !appState.isAwaitingAuthSetup {
                 Button {
-                    NSApp.activate(ignoringOtherApps: true)
-                    openWindow(id: "settings")
+                    WindowCoordinator.shared.showSettingsWindow()
                 } label: {
                     Text(error)
                         .font(.system(size: 11))
@@ -49,8 +47,7 @@ struct MenuView: View {
             // Setup notice (subtle, only when check actually failed — not during transient states)
             if appState.setupCheckPassed == false && !appState.isAwaitingAuthSetup {
                 Button {
-                    NSApp.activate(ignoringOtherApps: true)
-                    openWindow(id: "settings")
+                    WindowCoordinator.shared.showSettingsWindow()
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "info.circle.fill")
@@ -90,10 +87,13 @@ struct MenuView: View {
                 setupCheckFailed: appState.setupCheckPassed == false,
                 hasRepo: !appState.settingsStore.settings.remoteGitURL.trimmed.isEmpty
             ) {
-                if appState.settingsStore.settings.remoteGitURL.trimmed.isEmpty {
-                    NSApp.activate(ignoringOtherApps: true)
-                    openWindow(id: "settings")
-                } else {
+                switch appState.manualSyncAction {
+                case .onboarding:
+                    WindowCoordinator.shared.showSkillsWindow()
+                    appState.requestOnboardingPresentation()
+                case .settings:
+                    WindowCoordinator.shared.showSettingsWindow()
+                case .sync:
                     appState.syncNow(trigger: "manual")
                 }
             }
@@ -107,12 +107,10 @@ struct MenuView: View {
             // Secondary actions
             HStack(spacing: 0) {
                 SecondaryMenuButton(label: "Settings") {
-                    NSApp.activate(ignoringOtherApps: true)
-                    openWindow(id: "settings")
+                    WindowCoordinator.shared.showSettingsWindow()
                 }
                 SecondaryMenuButton(label: "Skills") {
-                    NSApp.activate(ignoringOtherApps: true)
-                    openWindow(id: "skills")
+                    WindowCoordinator.shared.showSkillsWindow()
                 }
                 Spacer()
                 SecondaryMenuButton(label: "Quit", role: .destructive) {
