@@ -45,7 +45,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor static func showSkillsWindow() {
         NSApp.activate(ignoringOtherApps: true)
-        // Let SwiftUI handle window lifecycle via openWindow(id:) in MenuView
+
+        // Find the SwiftUI-managed Skills window directly and bring it to front.
+        // The notification-based approach via MenuView is unreliable because MenuView
+        // lives inside a MenuBarExtra popover that is only active when visible.
+        for window in NSApp.windows {
+            let id = window.identifier?.rawValue ?? ""
+            if id.contains("skills") || window.title == "Skills" {
+                window.makeKeyAndOrderFront(nil)
+                return
+            }
+        }
+
+        // Fallback for initial launch before SwiftUI has created the window
         NotificationCenter.default.post(name: .openSkillsWindow, object: nil)
     }
 }
