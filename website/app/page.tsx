@@ -13,6 +13,14 @@ function AppleIcon({ className = 'w-4 h-4' }: { className?: string }) {
   );
 }
 
+function XIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
+
 function GitHubIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
     <svg className={className} fill="currentColor" viewBox="0 0 16 16">
@@ -82,6 +90,15 @@ export default function Home() {
           </a>
           <div className="flex items-center gap-5">
             <a
+              href="https://x.com/mikiovsh"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-slate-400 hover:text-slate-600 transition-colors"
+              aria-label="X"
+            >
+              <XIcon />
+            </a>
+            <a
               href="https://github.com/ovsh/hypersync"
               target="_blank"
               rel="noopener noreferrer"
@@ -134,10 +151,13 @@ export default function Home() {
                 variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 80, damping: 20 } } }}
               >
                 <p className="text-slate-500 text-lg leading-relaxed font-body">
-                  Hypersync installs shared skills and rules from a GitHub repo into Claude Code, Cursor, and every tool your team uses.
+                  Share skills and rules across your team in a click.
                 </p>
                 <p className="text-slate-500 text-lg leading-relaxed font-body">
-                  Set it up once. Everyone stays in sync, always.
+                  Works across Cursor · Claude Code · Codex · and more.
+                </p>
+                <p className="text-slate-500 text-lg leading-relaxed font-body">
+                  All from your GitHub repo. Fully open source.
                 </p>
               </motion.div>
 
@@ -300,6 +320,15 @@ export default function Home() {
       <div className="absolute bottom-0 left-0 right-0 z-20">
         <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-5">
+            <a
+              href="https://x.com/mikiovsh"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-slate-300 hover:text-slate-500 transition-colors text-xs font-body"
+            >
+              <XIcon className="w-3 h-3" />
+              X
+            </a>
             <a
               href="https://github.com/ovsh/hypersync"
               target="_blank"
