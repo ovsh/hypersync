@@ -50,18 +50,33 @@ struct SyncPlanner {
         var missingRoots: [String] = []
 
         for root in requestedRoots {
-            let rootURL = registryRoot.appendingPathComponent(root).standardizedFileURL
-            if fileManager.fileExists(atPath: rootURL.path) {
-                selectedRoots.append(root)
+            if let resolvedRoot = resolveExistingRoot(
+                requestedRoot: root,
+                registryRoot: registryRoot,
+                fileManager: fileManager
+            ) {
+                selectedRoots.append(resolvedRoot)
+                if resolvedRoot != root {
+                    logger(.warn, "Using compatibility root alias '\(root)' -> '\(resolvedRoot)'")
+                }
             } else {
                 missingRoots.append(root)
             }
         }
+        selectedRoots = normalizedRoots(selectedRoots)
 
         // If the repo uses top-level skills/ and rules/ (no team folder),
         // treat "." as a synthetic root in auto mode.
-        if settings.scanMode == .auto && selectedRoots.isEmpty && hasTopLevelContent(registryRoot: registryRoot, fileManager: fileManager) {
-            selectedRoots = ["."]
+        if settings.scanMode == .auto && selectedRoots.isEmpty {
+            if hasTopLevelContent(registryRoot: registryRoot, fileManager: fileManager) {
+                selectedRoots = ["."]
+            } else if hasSyncContentRecursively(registryRoot: registryRoot, fileManager: fileManager) {
+                logger(
+                    .warn,
+                    "No team roots detected. Falling back to recursive root scan for legacy/non-standard registry layout."
+                )
+                selectedRoots = ["."]
+            }
         }
 
         guard !selectedRoots.isEmpty else {
@@ -107,5 +122,49 @@ struct SyncPlanner {
         let topLevelSkills = registryRoot.appendingPathComponent("skills").path
         let topLevelRules = registryRoot.appendingPathComponent("rules").path
         return fileManager.fileExists(atPath: topLevelSkills) || fileManager.fileExists(atPath: topLevelRules)
+    }
+
+    private func resolveExistingRoot(requestedRoot: String, registryRoot: URL, fileManager: FileManager) -> String? {
+        for candidate in rootCandidates(for: requestedRoot) {
+            let rootURL = registryRoot.appendingPathComponent(candidate).standardizedFileURL
+            if fileManager.fileExists(atPath: rootURL.path) {
+                return candidate
+            }
+        }
+        return nil
+    }
+
+    private func rootCandidates(for requestedRoot: String) -> [String] {
+        switch requestedRoot {
+        case "everyone":
+            // Legacy repositories may still store the global scope under
+            // shared-global/.
+            return ["everyone", "shared-global"]
+        case "shared-global":
+            return ["shared-global", "everyone"]
+        default:
+            return [requestedRoot]
+        }
+    }
+
+    private func hasSyncContentRecursively(registryRoot: URL, fileManager: FileManager) -> Bool {
+        guard let enumerator = fileManager.enumerator(
+            at: registryRoot,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) else {
+            return false
+        }
+
+        for case let path as URL in enumerator {
+            let isDirectory = (try? path.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+            guard isDirectory else { continue }
+
+            let name = path.lastPathComponent
+            if name == "skills" || name == "rules" || name == "skills-cursor" {
+                return true
+            }
+        }
+        return false
     }
 }

@@ -30,10 +30,33 @@ final class SettingsStore: ObservableObject {
 
     private func migrateIfNeeded() {
         var changed = false
+        let fm = FileManager.default
+        let checkoutRoot = URL(fileURLWithPath: settings.checkoutPath.expandingTildePath)
+        let hasEveryone = fm.fileExists(atPath: checkoutRoot.appendingPathComponent("everyone").path)
+        let hasSharedGlobal = fm.fileExists(atPath: checkoutRoot.appendingPathComponent("shared-global").path)
 
-        // Migrate legacy "shared-global" scan root to "everyone"
-        if let idx = settings.scanRoots.firstIndex(of: "shared-global") {
-            settings.scanRoots[idx] = "everyone"
+        // Compatibility migration: choose the root that actually exists in the
+        // current checkout instead of blindly rewriting legacy names.
+        if hasSharedGlobal && !hasEveryone {
+            for idx in settings.scanRoots.indices where settings.scanRoots[idx] == "everyone" {
+                settings.scanRoots[idx] = "shared-global"
+                changed = true
+            }
+        } else if hasEveryone && !hasSharedGlobal {
+            for idx in settings.scanRoots.indices where settings.scanRoots[idx] == "shared-global" {
+                settings.scanRoots[idx] = "everyone"
+                changed = true
+            }
+        }
+
+        // Normalize and de-duplicate roots after migration.
+        var seen = Set<String>()
+        let normalizedRoots = settings.scanRoots
+            .map(\.trimmed)
+            .filter { !$0.isEmpty }
+            .filter { seen.insert($0).inserted }
+        if normalizedRoots != settings.scanRoots {
+            settings.scanRoots = normalizedRoots
             changed = true
         }
 

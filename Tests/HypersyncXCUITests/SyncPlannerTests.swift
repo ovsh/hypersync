@@ -74,6 +74,50 @@ final class SyncPlannerTests: XCTestCase {
         XCTAssertEqual(plan.selectedRoots, ["."])
     }
 
+    func testAutoModeResolvesEveryoneToLegacySharedGlobal() throws {
+        let registryRoot = try makeTempRegistry()
+        defer { try? FileManager.default.removeItem(at: registryRoot) }
+
+        try FileManager.default.createDirectory(
+            at: registryRoot.appendingPathComponent("shared-global/claude/rules"),
+            withIntermediateDirectories: true
+        )
+
+        let settings = AppSettings(
+            remoteGitURL: "https://github.com/acme/config.git",
+            scanMode: .auto,
+            scanRoots: ["everyone"],
+            checkoutPath: registryRoot.path,
+            autoSyncEnabled: false,
+            autoSyncIntervalMinutes: 60
+        )
+
+        let plan = try SyncPlanner().plan(settings: settings, registryRoot: registryRoot) { _, _ in }
+        XCTAssertEqual(plan.selectedRoots, ["shared-global"])
+    }
+
+    func testAutoModeFallsBackToRecursiveRootScanForNestedLayouts() throws {
+        let registryRoot = try makeTempRegistry()
+        defer { try? FileManager.default.removeItem(at: registryRoot) }
+
+        try FileManager.default.createDirectory(
+            at: registryRoot.appendingPathComponent("registry/everyone/skills"),
+            withIntermediateDirectories: true
+        )
+
+        let settings = AppSettings(
+            remoteGitURL: "https://github.com/acme/config.git",
+            scanMode: .auto,
+            scanRoots: ["everyone"],
+            checkoutPath: registryRoot.path,
+            autoSyncEnabled: false,
+            autoSyncIntervalMinutes: 60
+        )
+
+        let plan = try SyncPlanner().plan(settings: settings, registryRoot: registryRoot) { _, _ in }
+        XCTAssertEqual(plan.selectedRoots, ["."])
+    }
+
     private func makeTempRegistry() throws -> URL {
         let url = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("hypersync-syncplanner-\(UUID().uuidString)", isDirectory: true)
