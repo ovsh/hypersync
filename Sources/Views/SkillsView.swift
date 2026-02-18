@@ -53,6 +53,7 @@ struct SkillsView: View {
     @State private var isOnboardingPresented = false
     @State private var hasEvaluatedInitialOnboarding = false
     @State private var handledOnboardingRequestID = 0
+    @State private var loadSkillsRequestID = 0
 
     // MARK: - Derived State
 
@@ -868,34 +869,68 @@ struct SkillsView: View {
     // MARK: - Skill Discovery
 
     private func loadSkills() {
-        let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser.path
+        loadSkillsRequestID += 1
+        let requestID = loadSkillsRequestID
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
         let settings = appState.settingsStore.settings
         let checkoutPath = settings.checkoutPath.expandingTildePath
+        let teams = subscribedTeams
+
+        Task.detached(priority: .userInitiated) {
+            let snapshot = Self.discoverSkillsSnapshot(
+                home: home,
+                checkoutPath: checkoutPath,
+                teams: teams
+            )
+
+            await MainActor.run {
+                guard requestID == loadSkillsRequestID else { return }
+
+                teamGroups = snapshot.teamGroups
+                localSkills = snapshot.localSkills
+                legacyPlaygroundSkills = snapshot.legacyPlaygroundSkills
+                sortedTeamSkills = snapshot.sortedTeamSkills
+                sortedPlaygroundSkills = snapshot.sortedPlaygroundSkills
+            }
+        }
+    }
+
+    // MARK: - Skill File Helpers
+
+    private struct SkillDiscoverySnapshot {
+        let teamGroups: [TeamSkillGroup]
+        let localSkills: [SkillInfo]
+        let legacyPlaygroundSkills: [SkillInfo]
+        let sortedTeamSkills: [SkillInfo]
+        let sortedPlaygroundSkills: [SkillInfo]
+    }
+
+    private nonisolated static let frontmatterReadLimit = 16 * 1024
+
+    private nonisolated static func discoverSkillsSnapshot(
+        home: String,
+        checkoutPath: String,
+        teams: [TeamInfo]
+    ) -> SkillDiscoverySnapshot {
+        let fm = FileManager.default
 
         // 1. Build skill-to-team mapping and per-team playground skills from registry
         var skillToTeam: [String: String] = [:]
         var teamPlayground: [String: [SkillInfo]] = [:]
 
-        let teams = subscribedTeams
-
         for team in teams {
-            // Official skills
             let skillsDir = "\(checkoutPath)/\(team.folderName)/skills"
             if let entries = try? fm.contentsOfDirectory(atPath: skillsDir) {
                 for entry in entries {
                     if entry.hasPrefix(".") { continue }
                     let path = "\(skillsDir)/\(entry)"
                     var isDir: ObjCBool = false
-                    if fm.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue {
-                        if skillToTeam[entry] == nil {
-                            skillToTeam[entry] = team.folderName
-                        }
+                    if fm.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue, skillToTeam[entry] == nil {
+                        skillToTeam[entry] = team.folderName
                     }
                 }
             }
 
-            // Playground skills
             let pgDir = "\(checkoutPath)/\(team.folderName)/playground/skills"
             var pgSkills: [SkillInfo] = []
             if let entries = try? fm.contentsOfDirectory(atPath: pgDir) {
@@ -905,9 +940,8 @@ struct SkillsView: View {
                     var isDir: ObjCBool = false
                     guard fm.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue else { continue }
                     let skillFile = "\(path)/SKILL.md"
-                    if let content = try? String(contentsOfFile: skillFile, encoding: .utf8) {
-                        pgSkills.append(parseSkillFrontmatter(content, fallbackName: entry, dirName: entry))
-                    }
+                    let content = readFrontmatterPrefix(from: skillFile) ?? ""
+                    pgSkills.append(parseSkillFrontmatter(content, fallbackName: entry, dirName: entry))
                 }
             }
             teamPlayground[team.folderName] = pgSkills.sorted {
@@ -928,8 +962,7 @@ struct SkillsView: View {
                 guard fm.fileExists(atPath: skillDir, isDirectory: &isDir), isDir.boolValue else { continue }
 
                 let skillFile = "\(skillDir)/SKILL.md"
-                guard let content = try? String(contentsOfFile: skillFile, encoding: .utf8) else { continue }
-
+                let content = readFrontmatterPrefix(from: skillFile) ?? ""
                 let info = parseSkillFrontmatter(content, fallbackName: entry, dirName: entry)
                 if seen.insert(info.dirName).inserted {
                     allInstalled.append(info)
@@ -940,9 +973,8 @@ struct SkillsView: View {
         // 3. Group into team sections — always include "everyone" even if empty
         var groups: [TeamSkillGroup] = []
         let allTeamSkillNames = Set(skillToTeam.keys)
-
-        // Ensure "everyone" is always first, even if not discovered
         var includedTeamNames = Set<String>()
+
         for team in teams {
             let official = allInstalled
                 .filter { skillToTeam[$0.dirName] == team.folderName }
@@ -958,7 +990,6 @@ struct SkillsView: View {
             includedTeamNames.insert(team.folderName)
         }
 
-        // Always show "Everyone" section as a structural default
         if !includedTeamNames.contains("everyone") {
             groups.insert(TeamSkillGroup(
                 teamName: "everyone",
@@ -968,10 +999,8 @@ struct SkillsView: View {
             ), at: 0)
         }
 
-        teamGroups = groups
-
         // 4. Local skills = installed but not in any team
-        localSkills = allInstalled
+        let localSkills = allInstalled
             .filter { !allTeamSkillNames.contains($0.dirName) }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 
@@ -988,7 +1017,8 @@ struct SkillsView: View {
                 guard fm.fileExists(atPath: topPath, isDirectory: &isDir), isDir.boolValue else { continue }
 
                 let directSkillFile = "\(topPath)/SKILL.md"
-                if let content = try? String(contentsOfFile: directSkillFile, encoding: .utf8) {
+                if fm.fileExists(atPath: directSkillFile) {
+                    let content = readFrontmatterPrefix(from: directSkillFile) ?? ""
                     let info = parseSkillFrontmatter(content, fallbackName: topEntry, dirName: topEntry)
                     if legacySeen.insert(info.dirName).inserted {
                         legacyResult.append(info)
@@ -1004,8 +1034,9 @@ struct SkillsView: View {
                     guard fm.fileExists(atPath: subPath, isDirectory: &subIsDir), subIsDir.boolValue else { continue }
 
                     let dirName = "\(topEntry)/\(subEntry)"
-                    if let skillContent = findFirstSkillMD(in: subPath) {
-                        let info = parseSkillFrontmatter(skillContent, fallbackName: subEntry, dirName: dirName)
+                    if let skillFile = findFirstSkillFile(in: subPath) {
+                        let content = readFrontmatterPrefix(from: skillFile) ?? ""
+                        let info = parseSkillFrontmatter(content, fallbackName: subEntry, dirName: dirName)
                         if legacySeen.insert(info.dirName).inserted {
                             legacyResult.append(info)
                         }
@@ -1014,24 +1045,28 @@ struct SkillsView: View {
             }
         }
 
-        legacyPlaygroundSkills = legacyResult.sorted {
+        let legacyPlaygroundSkills = legacyResult.sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
+        let sortedTeamSkills = groups.flatMap { $0.officialSkills }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        let sortedPlaygroundSkills = (groups.flatMap { $0.playgroundSkills } + legacyPlaygroundSkills)
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 
-        // 6. Cache sorted arrays for sidebar (avoids re-sorting on every render)
-        sortedTeamSkills = teamGroups.flatMap { $0.officialSkills }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        sortedPlaygroundSkills = (teamGroups.flatMap { $0.playgroundSkills } + legacyPlaygroundSkills)
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        return SkillDiscoverySnapshot(
+            teamGroups: groups,
+            localSkills: localSkills,
+            legacyPlaygroundSkills: legacyPlaygroundSkills,
+            sortedTeamSkills: sortedTeamSkills,
+            sortedPlaygroundSkills: sortedPlaygroundSkills
+        )
     }
 
-    // MARK: - Skill File Helpers
-
-    private func findFirstSkillMD(in path: String) -> String? {
+    private nonisolated static func findFirstSkillFile(in path: String) -> String? {
         let fm = FileManager.default
         let skillFile = "\(path)/SKILL.md"
-        if let content = try? String(contentsOfFile: skillFile, encoding: .utf8) {
-            return content
+        if fm.fileExists(atPath: skillFile) {
+            return skillFile
         }
 
         guard let entries = try? fm.contentsOfDirectory(atPath: path) else { return nil }
@@ -1040,7 +1075,7 @@ struct SkillsView: View {
             let childPath = "\(path)/\(entry)"
             var isDir: ObjCBool = false
             if fm.fileExists(atPath: childPath, isDirectory: &isDir), isDir.boolValue {
-                if let found = findFirstSkillMD(in: childPath) {
+                if let found = findFirstSkillFile(in: childPath) {
                     return found
                 }
             }
@@ -1048,7 +1083,17 @@ struct SkillsView: View {
         return nil
     }
 
-    private func parseSkillFrontmatter(_ content: String, fallbackName: String, dirName: String) -> SkillInfo {
+    private nonisolated static func readFrontmatterPrefix(from path: String) -> String? {
+        guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
+        defer { try? handle.close() }
+
+        guard let data = try? handle.read(upToCount: frontmatterReadLimit) else {
+            return nil
+        }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    private nonisolated static func parseSkillFrontmatter(_ content: String, fallbackName: String, dirName: String) -> SkillInfo {
         var name = fallbackName
         var description = ""
 
@@ -1134,6 +1179,50 @@ struct SkillsView: View {
 
 // MARK: - Skill Detail View
 
+private actor SkillMarkdownBodyCache {
+    private struct Entry {
+        let modifiedAt: TimeInterval
+        let fileSize: UInt64
+        let body: String?
+    }
+
+    private var cache: [String: Entry] = [:]
+
+    func body(for path: String, modifiedAt: TimeInterval, fileSize: UInt64, rawContent: String) -> String? {
+        if let cached = cache[path],
+           cached.modifiedAt == modifiedAt,
+           cached.fileSize == fileSize {
+            return cached.body
+        }
+
+        let stripped = SkillDetailView.stripFrontmatter(rawContent)
+        let body = stripped.isEmpty ? nil : stripped
+        cache[path] = Entry(modifiedAt: modifiedAt, fileSize: fileSize, body: body)
+        return body
+    }
+
+    func invalidate(path: String) {
+        cache.removeValue(forKey: path)
+    }
+}
+
+private struct RenderedSkillMarkdownView: View, Equatable {
+    let markdownBody: String
+
+    nonisolated static func == (lhs: RenderedSkillMarkdownView, rhs: RenderedSkillMarkdownView) -> Bool {
+        lhs.markdownBody == rhs.markdownBody
+    }
+
+    var body: some View {
+        Markdown(markdownBody)
+            .markdownTextStyle {
+                FontSize(14)
+            }
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 struct SkillDetailView: View {
     let skill: SkillInfo
     let category: SkillCategory
@@ -1151,6 +1240,13 @@ struct SkillDetailView: View {
     @State private var skillContent: String = ""
     @State private var markdownBody: String?
     @State private var isEditing: Bool = false
+    @State private var contentLoadRequestID = 0
+    @State private var contentByteSize: UInt64 = 0
+    @State private var prefersPlainTextRender = false
+    @State private var forceMarkdownRender = false
+
+    private nonisolated static let markdownFallbackThresholdBytes: UInt64 = 200_000
+    private nonisolated static let markdownCache = SkillMarkdownBodyCache()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1316,12 +1412,12 @@ struct SkillDetailView: View {
                             )
                             .frame(minHeight: 200, maxHeight: 500)
                     } else if let body = markdownBody, !body.isEmpty {
-                        Markdown(body)
-                            .markdownTextStyle {
-                                FontSize(14)
-                            }
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if prefersPlainTextRender && !forceMarkdownRender {
+                            largeFileFallbackView(body: body)
+                        } else {
+                            RenderedSkillMarkdownView(markdownBody: body)
+                                .equatable()
+                        }
                     } else {
                         VStack(spacing: 8) {
                             Image(systemName: "doc.text")
@@ -1396,13 +1492,49 @@ struct SkillDetailView: View {
         .onAppear { loadContent() }
         .onChange(of: skill.id) {
             isEditing = false
+            forceMarkdownRender = false
             loadContent()
         }
+    }
+
+    @ViewBuilder
+    private func largeFileFallbackView(body: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "speedometer")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.orange)
+                Text("Large skill file (\(Self.formatByteCount(contentByteSize))). Showing plain text for faster scrolling.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+
+            Button("Render full markdown") {
+                forceMarkdownRender = true
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 12, weight: .semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(.quaternary.opacity(0.6))
+            )
+
+            Text(body)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(.primary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Content Loading
 
     private func loadContent() {
+        contentLoadRequestID += 1
+        let requestID = contentLoadRequestID
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let settings = appState.settingsStore.settings
         let checkoutPath = settings.checkoutPath.expandingTildePath
@@ -1413,6 +1545,9 @@ struct SkillDetailView: View {
 
         Task.detached(priority: .userInitiated) {
             var result: String = ""
+            var resolvedPath: String?
+            var fileSize: UInt64 = 0
+            var modifiedAt: TimeInterval = 0
 
             // Try checkout path first for team/playground skills
             if let team {
@@ -1424,6 +1559,7 @@ struct SkillDetailView: View {
                 }
                 if let content = try? String(contentsOfFile: path, encoding: .utf8) {
                     result = content
+                    resolvedPath = path
                 }
             }
 
@@ -1433,16 +1569,45 @@ struct SkillDetailView: View {
                     let path = "\(home)/\(dest)/\(skillName)/SKILL.md"
                     if let content = try? String(contentsOfFile: path, encoding: .utf8) {
                         result = content
+                        resolvedPath = path
                         break
                     }
                 }
             }
 
-            let body = Self.stripFrontmatter(result)
+            if let resolvedPath,
+               let attributes = try? FileManager.default.attributesOfItem(atPath: resolvedPath) {
+                if let bytes = attributes[.size] as? NSNumber {
+                    fileSize = bytes.uint64Value
+                } else if let bytes = attributes[.size] as? UInt64 {
+                    fileSize = bytes
+                }
+                if let modifiedDate = attributes[.modificationDate] as? Date {
+                    modifiedAt = modifiedDate.timeIntervalSinceReferenceDate
+                }
+            }
+
+            let cacheKey = resolvedPath ?? "in-memory:\(skill.id)"
+            let body = await Self.markdownCache.body(
+                for: cacheKey,
+                modifiedAt: modifiedAt,
+                fileSize: fileSize,
+                rawContent: result
+            )
+            let prefersPlainTextRender = fileSize > Self.markdownFallbackThresholdBytes
 
             await MainActor.run {
-                skillContent = result
-                markdownBody = body.isEmpty ? nil : body
+                guard requestID == contentLoadRequestID else { return }
+
+                if skillContent != result {
+                    skillContent = result
+                }
+                if markdownBody != body {
+                    markdownBody = body
+                }
+                contentByteSize = fileSize
+                self.prefersPlainTextRender = prefersPlainTextRender
+                forceMarkdownRender = false
             }
         }
     }
@@ -1451,6 +1616,7 @@ struct SkillDetailView: View {
         let fm = FileManager.default
         let home = fm.homeDirectoryForCurrentUser.path
         let skillName = skill.dirName.contains("/") ? String(skill.dirName.split(separator: "/").last!) : skill.dirName
+        var writtenPaths: [String] = []
 
         // Write to all local destinations where the skill dir exists
         for dest in ManifestLoader.skillDestinations {
@@ -1458,24 +1624,41 @@ struct SkillDetailView: View {
             let skillFile = "\(skillDir)/SKILL.md"
             if fm.fileExists(atPath: skillDir) {
                 try? skillContent.write(toFile: skillFile, atomically: true, encoding: .utf8)
+                writtenPaths.append(skillFile)
             }
         }
 
         // Update the markdown body so the view shows the edited content
         let body = Self.stripFrontmatter(skillContent)
         markdownBody = body.isEmpty ? nil : body
+        contentByteSize = UInt64(skillContent.lengthOfBytes(using: .utf8))
+        prefersPlainTextRender = contentByteSize > Self.markdownFallbackThresholdBytes
 
         onReload()
+
+        for path in writtenPaths {
+            Task {
+                await Self.markdownCache.invalidate(path: path)
+            }
+        }
     }
 
     /// Strip YAML frontmatter — nonisolated static so it can run off main thread
-    nonisolated private static func stripFrontmatter(_ raw: String) -> String {
+    nonisolated fileprivate static func stripFrontmatter(_ raw: String) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix("---") else { return raw }
         let afterOpening = trimmed.dropFirst(3)
         guard let closingRange = afterOpening.range(of: "\n---") else { return raw }
         return String(afterOpening[closingRange.upperBound...])
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    nonisolated private static func formatByteCount(_ bytes: UInt64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB]
+        formatter.countStyle = .file
+        formatter.includesUnit = true
+        return formatter.string(fromByteCount: Int64(bytes))
     }
 
     private func isSkillSyncedLocally(_ dirName: String) -> Bool {
