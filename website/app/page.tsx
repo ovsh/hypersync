@@ -154,7 +154,7 @@ export default function Home() {
                   Share skills and rules across your team in a click.
                 </p>
                 <p className="text-slate-500 text-lg leading-relaxed font-body">
-                  Works across Cursor · Claude Code · Codex · and more.
+                  Works across Cursor, Claude Code, Codex, and more.
                 </p>
                 <p className="text-slate-500 text-lg leading-relaxed font-body">
                   All from your GitHub repo. Fully open source.
